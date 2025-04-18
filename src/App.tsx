@@ -1,4 +1,5 @@
 
+import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,30 +21,32 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <OrderProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<AddressPage />} />
-            <Route path="/boutiques" element={<BoutiquesPage />} />
-            <Route path="/boutique/:id" element={<BoutiqueDetailPage />} />
-            <Route path="/service-options" element={<ServiceOptionsPage />} />
-            <Route path="/custom-design" element={<CustomDesignPage />} />
-            <Route path="/cloth-selection" element={<ClothSelectionPage />} />
-            <Route path="/measurement" element={<MeasurementPage />} />
-            <Route path="/order-summary" element={<OrderSummaryPage />} />
-            <Route path="/pickup-scheduling" element={<PickupSchedulingPage />} />
-            <Route path="/confirmation" element={<ConfirmationPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </OrderProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+const App: React.FC = () => (
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <OrderProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<AddressPage />} />
+              <Route path="/boutiques" element={<BoutiquesPage />} />
+              <Route path="/boutique/:id" element={<BoutiqueDetailPage />} />
+              <Route path="/service-options" element={<ServiceOptionsPage />} />
+              <Route path="/custom-design" element={<CustomDesignPage />} />
+              <Route path="/cloth-selection" element={<ClothSelectionPage />} />
+              <Route path="/measurement" element={<MeasurementPage />} />
+              <Route path="/order-summary" element={<OrderSummaryPage />} />
+              <Route path="/pickup-scheduling" element={<PickupSchedulingPage />} />
+              <Route path="/confirmation" element={<ConfirmationPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </OrderProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </React.StrictMode>
 );
 
 export default App;
