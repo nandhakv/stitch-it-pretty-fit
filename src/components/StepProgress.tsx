@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Check } from 'lucide-react';
 
@@ -9,7 +8,7 @@ interface StepProgressProps {
 
 const StepProgress: React.FC<StepProgressProps> = ({ steps, currentStep }) => {
   return (
-    <div className="step-progress">
+    <div className="step-progress md:hidden">
       {steps.map((step, index) => {
         const isActive = index === currentStep;
         const isCompleted = index < currentStep;
