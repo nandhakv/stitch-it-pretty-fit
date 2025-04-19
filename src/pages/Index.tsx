@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrder } from '../utils/OrderContext';
@@ -73,6 +72,21 @@ const Index: React.FC = () => {
         </Carousel>
       </section>
 
+      {/* Popular Boutiques - Now above Services */}
+      <section className="container mx-auto px-4 mb-12">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-semibold text-plum">Popular Boutiques</h2>
+          <Button variant="outline" onClick={() => navigate('/boutiques')}>
+            View All
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {boutiques.slice(0, 6).map((boutique) => (
+            <BoutiqueCard key={boutique.id} boutique={boutique} />
+          ))}
+        </div>
+      </section>
+
       {/* Featured Categories */}
       <section className="container mx-auto px-4 mb-12">
         <h2 className="text-2xl font-semibold mb-6 text-plum">Our Services</h2>
@@ -89,21 +103,6 @@ const Index: React.FC = () => {
             <h3 className="text-xl font-semibold mb-2">Boutique Selection</h3>
             <p className="text-gray-600">Choose from our curated list of premium boutiques</p>
           </div>
-        </div>
-      </section>
-
-      {/* Popular Boutiques */}
-      <section className="container mx-auto px-4 mb-12">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-semibold text-plum">Popular Boutiques</h2>
-          <Button variant="outline" onClick={() => navigate('/boutiques')}>
-            View All
-          </Button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {boutiques.slice(0, 6).map((boutique) => (
-            <BoutiqueCard key={boutique.id} boutique={boutique} />
-          ))}
         </div>
       </section>
 
