@@ -82,6 +82,7 @@ export interface PickupSlot {
 }
 
 export interface OrderDetails {
+  deliveryPincode?: string;  // Add this new field
   boutique?: Boutique;
   service?: Service;
   designType?: "predesigned" | "custom";

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -18,6 +17,7 @@ import OrderSummaryPage from "./pages/OrderSummaryPage";
 import PickupSchedulingPage from "./pages/PickupSchedulingPage";
 import ConfirmationPage from "./pages/ConfirmationPage";
 import NotFound from "./pages/NotFound";
+import Index from "./pages/Index";
 
 const queryClient = new QueryClient();
 
@@ -30,7 +30,7 @@ const App: React.FC = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<AddressPage />} />
+              <Route path="/" element={<Index />} />
               <Route path="/boutiques" element={<BoutiquesPage />} />
               <Route path="/boutique/:id" element={<BoutiqueDetailPage />} />
               <Route path="/service-options" element={<ServiceOptionsPage />} />
