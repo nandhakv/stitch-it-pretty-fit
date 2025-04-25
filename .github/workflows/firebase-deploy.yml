@@ -51,16 +51,11 @@ jobs:
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.FIREBASE_MEASUREMENT_ID }}
           VITE_APP_ENV: ${{ env.BUILD_ENV }}
 
-      - name: Setup Firebase Service Account
-        run: |
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > firebase-service-account.json
-          cat firebase-service-account.json
-      
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: './firebase-service-account.json'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
           projectId: tailor-app-71fe2
           channelId: ${{ env.CHANNEL_ID }}
         env:
