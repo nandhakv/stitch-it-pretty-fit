@@ -51,16 +51,9 @@ jobs:
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.FIREBASE_MEASUREMENT_ID }}
           VITE_APP_ENV: ${{ env.BUILD_ENV }}
 
-      - name: Decode Firebase service account
-        run: |
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' | base64 --decode > firebase-service-account.json
-      
       - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: w9jds/firebase-action@master
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: './firebase-service-account.json'
-          projectId: tailor-app-71fe2
-          channelId: ${{ env.CHANNEL_ID }}
+          args: hosting:channel:deploy ${{ env.CHANNEL_ID }} --expires 7d
         env:
-          FIREBASE_CLI_PREVIEWS: hostingchannels
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
