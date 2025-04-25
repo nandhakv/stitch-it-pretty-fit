@@ -1,13 +1,15 @@
 
 export interface Address {
+  id: string;
   fullName: string;
   phone: string;
+  doorNo: string;
   addressLine1: string;
-  addressLine2?: string;
-  city: string;
-  state: string;
+  area: string;
+  landmark?: string;
   pincode: string;
   isDefault?: boolean;
+  type?: string;
 }
 
 export interface User {
@@ -15,17 +17,32 @@ export interface User {
   name: string;
   phone: string;
   email?: string;
+  dob?: string;
   addresses: Address[];
+}
+
+export interface BoutiqueAddress {
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  pincode: string;
 }
 
 export interface Boutique {
   id: string;
   name: string;
-  image: string;
+  description: string;
+  address: BoutiqueAddress;
   rating: number;
   reviewCount: number;
-  location: string;
-  services: Service[];
+  imageUrls: string[];
+  services: string[];
+  isOpen: boolean;
+  featured: boolean;
+  // For backward compatibility
+  image?: string;
+  location?: string;
 }
 
 export interface Service {
@@ -82,7 +99,9 @@ export interface PickupSlot {
 }
 
 export interface OrderDetails {
-  deliveryPincode?: string;  // Add this new field
+  deliveryPincode?: string;
+  deliveryAddress?: Address;
+  selectedAddressId?: string;
   boutique?: Boutique;
   service?: Service;
   designType?: "predesigned" | "custom";
@@ -117,6 +136,10 @@ export interface OrderDetails {
     slot: string;
     address: Address;
   };
+  
+  // For home measurement service scheduling
+  scheduledDate?: string;
+  scheduledTime?: string;
   deliveryEstimate?: string;
   totalPrice?: number;
 }

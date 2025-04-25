@@ -5,6 +5,33 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom styles */
+.sticky-tabs {
+  position: fixed !important;
+  top: 56px !important;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.tab-container {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 56px;
+  z-index: 50;
+}
+
+/* Hide scrollbar for clean UI */
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
 @layer base {
   :root {
     --background: 32 45% 98%;
