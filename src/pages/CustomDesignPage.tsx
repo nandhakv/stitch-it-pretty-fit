@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Upload, CheckCircle2, X, Sparkles } from 'lucide-react';
-import DesignOptionCard from '../components/DesignOptionCard';
+import { Upload, CheckCircle2, X, Sparkles, Camera, Image, ArrowLeft, Save, Plus } from 'lucide-react';
 import { mockApi } from '../utils/mockApi';
 import { DesignOption } from '../utils/types';
 import { useOrder } from '../utils/OrderContext';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { toast } from '@/components/ui/use-toast';
 
 const sections = [
   { id: "embroidery", title: "Embroidery Type" },
@@ -12,6 +14,8 @@ const sections = [
   { id: "neckBack", title: "Neck Style (Back)" },
   { id: "blouseType", title: "Blouse Type" }
 ];
+
+
 
 const CustomDesignPage: React.FC = () => {
   const navigate = useNavigate();
@@ -24,7 +28,9 @@ const CustomDesignPage: React.FC = () => {
   const [selections, setSelections] = useState<Record<string, DesignOption>>({});
   const [totalPrice, setTotalPrice] = useState<number>(0);
   const [allSectionsComplete, setAllSectionsComplete] = useState<boolean>(false);
-  const pricingSummaryRef = React.useRef<HTMLDivElement>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pricingSummaryRef = useRef<HTMLDivElement>(null);
   
   // Load design options when active section changes
   useEffect(() => {
@@ -35,410 +41,419 @@ const CustomDesignPage: React.FC = () => {
     });
   }, [activeSection]);
   
-  // Initialize selections and uploads from order context when component mounts
+  // Calculate total price whenever selections change
+  useEffect(() => {
+    let price = 0;
+    // Add design options price
+    Object.values(selections).forEach(option => {
+      price += option.price || 0;
+    });
+    
+    // Material price is now handled outside of this page
+    
+    setTotalPrice(price);
+    
+    // Check if all sections have selections
+    const requiredSections = sections.map(s => s.id);
+    const selectedSections = Object.keys(selections);
+    const completed = requiredSections.every(section => selectedSections.includes(section));
+    setAllSectionsComplete(completed);
+  }, [selections]);
+  
+  // Check if the designs are in order context
   useEffect(() => {
     if (order.customDesign) {
-      // Extract selections and custom uploads from order context
-      const savedSelections: Record<string, DesignOption> = {};
-      const savedUploads: Record<string, string> = {};
+      if (order.customDesign.customUploads?.referenceImage) {
+        setSelectedImage(order.customDesign.customUploads.referenceImage);
+      }
       
-      // Process the saved design data
-      Object.entries(order.customDesign).forEach(([key, value]) => {
-        if (key === 'customUploads') {
-          // Handle custom uploads
-          if (value && typeof value === 'object') {
-            Object.entries(value).forEach(([uploadKey, uploadValue]) => {
-              if (typeof uploadValue === 'string') {
-                savedUploads[uploadKey] = uploadValue;
-              }
-            });
-          }
-        } else if (value && typeof value === 'object' && 'id' in value) {
-          // Handle selections (design options)
+      // Extract selections from order context
+      const savedSelections: Record<string, DesignOption> = {};
+      for (const [key, value] of Object.entries(order.customDesign)) {
+        if (key !== 'customUploads' && key !== 'material' && value && typeof value === 'object' && 'id' in value) {
           savedSelections[key] = value as DesignOption;
         }
-      });
+      }
       
-      // Update state with saved values
       if (Object.keys(savedSelections).length > 0) {
         setSelections(savedSelections);
       }
       
-      if (Object.keys(savedUploads).length > 0) {
-        setCustomUploads(savedUploads);
+      // Extract custom uploads
+      if (order.customDesign.customUploads) {
+        setCustomUploads(order.customDesign.customUploads as Record<string, string>);
       }
+      
+      // Material info is now handled at higher level
     }
   }, [order.customDesign]);
   
-  useEffect(() => {
-    // Calculate total price based on selections
-    let price = 0;
-    for (const key in selections) {
-      price += selections[key].price;
-    }
-    setTotalPrice(price);
-    
-    // Check if all sections have selections (either a design option or a custom upload)
-    const completedSections = new Set<string>();
-    
-    // Add sections with selected designs
-    Object.keys(selections).forEach(sectionId => {
-      completedSections.add(sectionId);
-    });
-    
-    // Add sections with custom uploads
-    Object.keys(customUploads).forEach(sectionId => {
-      completedSections.add(sectionId);
-    });
-    
-    // Check if all sections are complete
-    const isComplete = sections.every(section => completedSections.has(section.id));
-    setAllSectionsComplete(isComplete);
-  }, [selections, customUploads]);
-  
+  // Handler for selecting a design option
   const handleOptionSelect = (option: DesignOption) => {
-    // Add the selection
     setSelections(prev => ({
       ...prev,
       [activeSection]: option
     }));
     
-    // Remove any existing custom upload for this section
-    if (customUploads[activeSection]) {
-      setCustomUploads(prev => {
-        const updated = { ...prev };
-        delete updated[activeSection];
-        return updated;
-      });
-    }
+    toast({
+      title: `${option.name} selected`,
+      description: option.price > 0 ? `Price: ₹${option.price}` : "Added to your design",
+      duration: 2000
+    });
   };
   
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files[0]) {
-      const file = files[0];
-      const reader = new FileReader();
-      
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          // Add the custom upload
+  // Handler for custom image upload
+  const handleCustomUpload = (sectionId: string) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    
+    input.onchange = (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result as string;
           setCustomUploads(prev => ({
             ...prev,
-            [activeSection]: event.target?.result as string
+            [sectionId]: result
           }));
-          
-          // Remove any existing selection for this section
-          if (selections[activeSection]) {
-            setSelections(prev => {
-              const updated = { ...prev };
-              delete updated[activeSection];
-              return updated;
-            });
-          }
-        }
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    
+    input.click();
+  };
+  
+  // Handler to trigger file input click for reference image
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+  
+  // Handler for file selection of reference image
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        setSelectedImage(result);
+        // Store the image in the customUploads
+        setCustomUploads(prev => ({
+          ...prev,
+          'referenceImage': result
+        }));
       };
-      
       reader.readAsDataURL(file);
     }
   };
   
-  const handleContinue = () => {
-    if (!allSectionsComplete) return;
-    
-    updateOrder({
-      customDesign: {
-        ...selections,
-        customUploads
-      }
+  // Handle the camera capture (mock for now)
+  const handleCameraCapture = () => {
+    toast({
+      title: "Camera functionality",
+      description: "Camera access would be requested here on a real device",
+      duration: 3000
     });
-    // Use nested route if params are available, otherwise use fallback route
-    if (boutiqueId && serviceId) {
-      navigate(`/boutique/${boutiqueId}/service/${serviceId}/cloth-selection`);
-    } else {
-      navigate('/cloth-selection');
-    }
   };
   
-  const hasUploadsOrSelections = Object.keys(selections).length > 0 || Object.keys(customUploads).length > 0;
-  
-  // Count how many sections are complete
-  const completedSectionsCount = new Set<string>([...Object.keys(selections), ...Object.keys(customUploads)]).size;
-  const totalSections = sections.length;
+  // Handler to save the custom design to order context and navigate to next step
+  const handleSaveDesign = () => {
+    // If user has selected image but not customized anything, allow them to continue
+    const hasImageOnly = selectedImage && Object.keys(selections).length === 0;
+    
+    // If user has started customizing but not completed, show error
+    if (!hasImageOnly && !allSectionsComplete) {
+      // Scroll to the pricing summary which shows what's missing
+      pricingSummaryRef.current?.scrollIntoView({ behavior: 'smooth' });
+      toast({
+        title: "Incomplete design",
+        description: "Please complete all sections before continuing",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Save to order context
+    updateOrder({
+      ...order,
+      customDesign: {
+        ...selections,
+        customUploads: customUploads
+        // Material info is now handled separately
+      }
+    });
+    
+    // Navigate to next step (typically measurement page)
+    navigate(`/boutique/${boutiqueId}/service/${serviceId}/measurement`);
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Page header with design info - hidden on mobile */}
-      <div className="hidden md:block bg-gradient-to-r from-plum/90 to-plum/70 text-white py-5 md:py-8 px-4 mt-0 pt-6 pb-0 mb-0">
-        <div className="container mx-auto max-w-4xl">
-          <h1 className="text-2xl md:text-3xl font-bold mb-1 md:mb-2">Custom Design</h1>
-          <p className="text-white/80 max-w-2xl text-sm md:text-base pb-2">
-            Personalize every aspect of your {order.service?.name || "item"} to create a unique design that's perfect for you.
-          </p>
-        </div>
+    <div className="min-h-screen bg-gray-50 pt-[2rem] md:pt-[3.8rem] pb-24">
+      {/* Top Navigation Bar */}
+      <div className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 z-10 flex items-center px-4">
+        <button 
+          onClick={() => navigate(-1)}
+          className="p-2 mr-3 hover:bg-gray-100 rounded-full transition-colors"
+          aria-label="Go back"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-700" />
+        </button>
+        <h1 className="text-lg font-semibold text-gray-900 flex-1">
+          Customize Your Design
+        </h1>
       </div>
-      
-      {/* Fixed tab headers in a 2x2 grid layout */}
-      <div className="sticky top-14 z-40 w-full bg-white border-b border-border/40 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
-        <div className="container grid grid-cols-2 grid-rows-2 md:flex md:items-center w-full bg-white/90 h-24 md:h-12 mb-0 pb-0">
-          {sections.map((section) => {
-            const hasSelection = !!selections[section.id] || !!customUploads[section.id];
-            
-            return (
-              <button
-                key={section.id}
-                className={`h-12 px-2 md:px-5 text-xs md:text-sm whitespace-nowrap transition-colors relative w-full flex items-center justify-center ${
-                  activeSection === section.id
-                    ? 'text-plum font-medium border-b-2 border-plum'
-                    : 'text-gray-600 hover:text-gray-900 border-b-2 border-transparent'
-                }`}
-                onClick={() => setActiveSection(section.id)}
+
+      <div className="px-4 pt-2">
+
+
+        {/* Upload Reference Image Section - Above tabs */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+          <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center">
+            <Upload className="w-5 h-5 text-plum mr-2" />
+            Upload Reference Image
+          </h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Upload a reference image to help us understand your design vision better.
+          </p>
+          
+          {selectedImage ? (
+            <div className="w-full relative mb-6">
+              <img 
+                src={selectedImage} 
+                alt="Reference design" 
+                className="w-full max-h-[300px] object-contain rounded-lg"
+              />
+              <button 
+                onClick={() => setSelectedImage(null)}
+                className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md"
               >
-                <div className="flex items-center justify-center">
-                  {section.title}
-                  {hasSelection && (
-                    <span className="ml-1.5 text-xs text-plum/90 bg-plum/10 px-1 py-0.5 rounded-sm">
-                      ✓
-                    </span>
-                  )}
-                </div>
+                <X className="w-5 h-5 text-gray-600" />
               </button>
-            );
-          })}
-        </div>
-      </div>
-      
-      {/* Main content - with padding to account for taller sticky header */}
-      <div className="container mx-auto md:p-6 lg:p-8 max-w-4xl px-0 md:px-4 pt-0 md:pt-6">
-        {/* Design section content */}
-        <div className="bg-white md:rounded-xl shadow-sm overflow-hidden mb-6 rounded-none md:rounded-xl p-0 border-t-0 -mt-0.5 md:mt-0">
-          <div className="p-5">
-            {loading ? (
-              <div className="flex justify-center my-8">
-                <div className="w-10 h-10 border-4 border-plum/30 border-t-plum rounded-full animate-spin"></div>
-              </div>
-            ) : (
-              <>
-                <div>
-                  <h3 className="text-lg font-medium mb-4 flex items-center">
-                    <Sparkles className="w-5 h-5 mr-2 text-plum" />
-                    Select from our designs
-                  </h3>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3">
-                    {options.map((option) => (
-                      <div 
-                        key={option.id}
-                        className={`border rounded-lg overflow-hidden cursor-pointer transition-all ${selections[activeSection]?.id === option.id ? 'border-plum ring-2 ring-plum/20' : 'border-gray-200 hover:border-gray-300'}`}
-                        onClick={() => handleOptionSelect(option)}
-                      >
-                        <div className="relative">
-                          <img 
-                            src={option.image} 
-                            alt={option.name} 
-                            className="w-full h-24 sm:h-28 object-cover"
-                          />
-                          {selections[activeSection]?.id === option.id && (
-                            <div className="absolute top-1 right-1 bg-plum text-white p-1 rounded-full">
-                              <CheckCircle2 className="w-3 h-3" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="p-2">
-                          <div className="flex flex-col">
-                            <h4 className="text-xs font-medium text-gray-800 truncate">{option.name}</h4>
-                            <div className="text-xs bg-plum/10 text-plum font-medium px-1.5 py-0.5 rounded mt-1 self-start">
-                              ₹{option.price}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="mt-8 pt-6 border-t border-gray-100">
-                  <h3 className="text-lg font-medium mb-3 flex items-center">
-                    <Upload className="w-5 h-5 mr-2 text-plum" />
-                    Upload Your Design
-                  </h3>
-                  <label className="block">
-                    <div className="flex items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleImageUpload}
-                      />
-                      <div className="text-center">
-                        <div className="w-14 h-14 bg-plum/10 rounded-full flex items-center justify-center mx-auto mb-2">
-                          <Upload className="w-7 h-7 text-plum" />
-                        </div>
-                        <p className="font-medium text-gray-700">Upload your own {activeSection} design</p>
-                        <p className="mt-1 text-sm text-gray-500">Drag and drop or click to browse</p>
-                      </div>
-                    </div>
-                  </label>
-                  
-                  {customUploads[activeSection] && (
-                    <div className="mt-4 relative bg-white rounded-xl overflow-hidden border border-gray-200">
-                      <div className="p-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                        <span className="font-medium text-sm text-gray-700">Your uploaded design</span>
-                        <button
-                          className="text-red-500 hover:text-red-700 transition-colors"
-                          onClick={() => {
-                            setCustomUploads(prev => {
-                              const updated = { ...prev };
-                              delete updated[activeSection];
-                              return updated;
-                            });
-                          }}
-                        >
-                          <X className="w-5 h-5" />
-                        </button>
-                      </div>
-                      <img
-                        src={customUploads[activeSection]}
-                        alt="Uploaded design"
-                        className="w-full h-48 object-contain p-4"
-                      />
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-        
-        {/* Selection Summary */}
-        <div className="bg-white md:rounded-xl shadow-sm overflow-hidden mb-6">
-          <div className="p-4 bg-gray-50 border-b border-gray-200">
-            <h3 className="font-medium text-gray-800">Your Selections</h3>
-          </div>
-          <div className="p-5">
-            {hasUploadsOrSelections ? (
-              <>
-                <div className="space-y-4">
-                  {Object.keys(selections).map(sectionId => {
-                    const section = sections.find(s => s.id === sectionId);
-                    const option = selections[sectionId];
-                    return (
-                      <div key={sectionId} className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="w-12 h-12 rounded-md overflow-hidden mr-3">
-                            <img src={option.image} alt={option.name} className="w-full h-full object-cover" />
-                          </div>
-                          <div>
-                            <span className="text-sm text-gray-500">{section?.title}</span>
-                            <p className="font-medium text-gray-800">{option.name}</p>
-                          </div>
-                        </div>
-                        <div className="text-plum font-medium">₹{option.price}</div>
-                      </div>
-                    );
-                  })}
-                  
-                  {Object.keys(customUploads).map(sectionId => {
-                    const section = sections.find(s => s.id === sectionId);
-                    if (!selections[sectionId]) { // Only show if not already in selections
-                      return (
-                        <div key={`upload-${sectionId}`} className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div className="w-12 h-12 rounded-md overflow-hidden mr-3 bg-gray-100 flex items-center justify-center">
-                              <Upload className="w-6 h-6 text-gray-400" />
-                            </div>
-                            <div>
-                              <span className="text-sm text-gray-500">{section?.title}</span>
-                              <p className="font-medium text-gray-800">Custom Upload</p>
-                            </div>
-                          </div>
-                          <div className="text-gray-500 font-medium">Price on review</div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
-                </div>
-                
-                <div className="mt-6 pt-4 border-t border-gray-100" ref={pricingSummaryRef}>
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-gray-800">Design Total:</span>
-                    <span className="text-lg font-semibold text-plum">
-                      {Object.keys(customUploads).length > 0 ? (
-                        "Will be calculated after review"
-                      ) : (
-                        `₹${totalPrice}`
-                      )}
-                    </span>
-                  </div>
-                  
-                  {hasUploadsOrSelections && !allSectionsComplete && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 mt-4">
-                      <div className="font-medium mb-1">Please complete all sections</div>
-                      <div className="flex items-center justify-between">
-                        <span>Completed {completedSectionsCount} of {totalSections} sections</span>
-                        <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-                          {totalSections - completedSectionsCount} remaining
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-6 text-gray-500">
-                <p>No selections yet. Choose design options above.</p>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        {/* Help section */}
-        <div className="bg-gray-50 border border-gray-200 md:rounded-xl p-4 md:p-6 mb-6 mx-4 md:mx-0">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Design Tips</h3>
-          <p className="text-gray-600 mb-2">
-            Mix and match different elements to create your perfect design. You can select from our curated options or upload your own designs.  
-          </p>
-          <p className="text-gray-600">
-            Custom uploads will be reviewed by our designers who will contact you with pricing information.
-          </p>
-        </div>
-        
-        {/* Spacer to ensure content isn't hidden behind sticky button */}
-        <div className="h-24 md:h-20"></div>
-        
-        {/* Sticky Continue button */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 md:p-3 z-40 md:max-w-lg md:mx-auto md:right-4 md:left-auto md:rounded-lg md:shadow-md md:border md:bottom-4">
-          <div 
-            className="bg-gray-50 border border-gray-200 rounded-md py-1.5 px-3 text-xs mb-2 cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-between"
-            onClick={() => pricingSummaryRef.current?.scrollIntoView({ behavior: 'smooth' })}
-          >
-            <div className="flex items-center">
-              <span className="font-medium text-gray-700 mr-1">Total:</span>
-              <span className="font-semibold text-plum">
-                {Object.keys(customUploads).length > 0 ? (
-                  "Will be calculated after review"
-                ) : (
-                  `₹${totalPrice}`
-                )}
-              </span>
             </div>
-            <div className="text-gray-500">
-              {!allSectionsComplete && `${completedSectionsCount}/${totalSections} complete • Details →`}
+          ) : (
+            <div 
+              className="w-full h-[200px] border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center mb-6 hover:border-plum/40 hover:bg-plum/5 transition-colors cursor-pointer"
+              onClick={handleUploadClick}
+            >
+              <Upload className="w-10 h-10 text-gray-400 mb-3" />
+              <p className="text-sm text-gray-500">Click to upload an image</p>
+              <p className="text-xs text-gray-400 mt-1">JPG, PNG or GIF (max. 5MB)</p>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                accept="image/*" 
+                className="hidden" 
+              />
             </div>
+          )}
+          
+          <div className="flex gap-4 mb-4">
+            <Button
+              variant="outline"
+              className="flex-1 flex items-center justify-center"
+              onClick={handleUploadClick}
+            >
+              <Image className="w-4 h-4 mr-2" />
+              Gallery
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1 flex items-center justify-center"
+              onClick={handleCameraCapture}
+            >
+              <Camera className="w-4 h-4 mr-2" />
+              Camera
+            </Button>
           </div>
           
-          <button 
-            onClick={handleContinue}
-            className={`w-full py-3.5 md:py-2.5 rounded-xl font-medium transition-colors ${allSectionsComplete ? 'bg-plum hover:bg-plum/90 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
-            disabled={!allSectionsComplete}
-          >
-            {allSectionsComplete ? (
-              "Continue to Cloth Selection"
-            ) : (
-              `Complete ${totalSections - completedSectionsCount} more section${totalSections - completedSectionsCount !== 1 ? 's' : ''}`
-            )}
-          </button>
+          {selectedImage && (
+            <Button
+              className="w-full bg-plum hover:bg-plum/90 py-6"
+              onClick={handleSaveDesign}
+            >
+              Continue with this image
+            </Button>
+          )}
         </div>
+        
+        {/* Section Navigation using Tabs - Sticky on Mobile */}
+        <div className="sticky top-16 bg-white z-20 -mx-4 px-4 py-2 border-b border-gray-200">
+          <Tabs defaultValue={activeSection} onValueChange={setActiveSection}>
+            <TabsList className="w-full justify-start overflow-x-auto whitespace-nowrap">
+              {sections.map(section => (
+                <TabsTrigger 
+                  key={section.id} 
+                  value={section.id} 
+                  className="relative"
+                >
+                  {section.title}
+                  {selections[section.id] && (
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></span>
+                  )}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
+          
+        {/* Tab Content */}
+        <div className="mt-4">
+
+          {/* Design Options */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
+            <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center">
+              <Sparkles className="w-5 h-5 text-plum mr-2" />
+              Select {sections.find(s => s.id === activeSection)?.title}
+            </h3>
+            
+            {loading ? (
+              <div className="h-32 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-plum"></div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                {options.map(option => (
+                  <div key={option.id} className="relative">
+                    <button
+                      className={`w-full h-full flex flex-col items-center rounded-md border-2 p-3 transition-colors ${
+                        selections[activeSection]?.id === option.id 
+                          ? 'border-plum bg-plum/5' 
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                      onClick={() => handleOptionSelect(option)}
+                    >
+                      <div className="aspect-square w-full mb-2 rounded-md overflow-hidden bg-gray-100">
+                        {option.image ? (
+                          <img src={option.image} alt={option.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                            <Sparkles className="w-6 h-6 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-sm">{option.name}</span>
+                      {option.price > 0 && (
+                        <span className="text-xs text-plum mt-1">+₹{option.price}</span>
+                      )}
+                      
+                      {selections[activeSection]?.id === option.id && (
+                        <div className="absolute top-2 right-2 bg-plum rounded-full p-1">
+                          <CheckCircle2 className="w-4 h-4 text-white" />
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                ))}
+                
+                {/* Upload Custom Option */}
+                <div className="relative">
+                  <button 
+                    className="w-full h-full flex flex-col items-center rounded-md border-2 border-dashed border-gray-300 p-3 hover:border-plum/40 hover:bg-plum/5 transition-colors"
+                    onClick={() => handleCustomUpload(activeSection)}
+                  >
+                    <div className="aspect-square w-full mb-2 rounded-md overflow-hidden bg-gray-50 flex flex-col items-center justify-center">
+                      <Plus className="w-6 h-6 text-gray-400 mb-1" />
+                      <span className="text-xs text-gray-500">Upload</span>
+                    </div>
+                    <span className="text-sm">Custom Design</span>
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {customUploads[activeSection] && (
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium text-gray-700">Custom Upload</h4>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => {
+                      const newUploads = {...customUploads};
+                      delete newUploads[activeSection];
+                      setCustomUploads(newUploads);
+                    }}
+                    className="h-6 text-xs"
+                  >
+                    <X className="w-3 h-3 mr-1" /> Remove
+                  </Button>
+                </div>
+                <div className="aspect-video rounded-md overflow-hidden bg-gray-100">
+                  <img 
+                    src={customUploads[activeSection]} 
+                    alt={`Custom ${sections.find(s => s.id === activeSection)?.title}`} 
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          
+
+          
+          {/* Pricing Summary */}
+          <div ref={pricingSummaryRef} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-20">
+            <h2 className="text-lg font-medium text-gray-800 mb-4">Design Summary</h2>
+            
+            <div className="space-y-3 mb-6">
+
+              
+              {/* Design options */}
+              {sections.map(section => (
+                <div key={section.id} className="flex justify-between items-center p-2 border-b border-gray-100">
+                  <div className="flex items-center">
+                    {selections[section.id] ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-500 mr-2" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full border-2 border-gray-300 mr-2"></div>
+                    )}
+                    <span className="text-gray-700">{section.title}</span>
+                  </div>
+                  <div className="text-right">
+                    {selections[section.id] ? (
+                      <>
+                        <div className="font-medium text-gray-900">{selections[section.id].name}</div>
+                        {selections[section.id].price > 0 && (
+                          <div className="text-sm text-plum">₹{selections[section.id].price}</div>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-sm text-gray-500">Not selected</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="flex justify-between items-center text-lg font-semibold pt-2">
+              <span>Total Price</span>
+              <span className="text-plum">₹{totalPrice}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Bottom Action Button */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10">
+        <Button
+          className={`w-full py-6 rounded-xl font-medium text-white ${
+            selectedImage && (allSectionsComplete || Object.keys(selections).length === 0)
+              ? 'bg-plum hover:bg-plum/90' 
+              : 'bg-gray-400 cursor-not-allowed'
+          }`}
+          disabled={!selectedImage || (!allSectionsComplete && Object.keys(selections).length > 0)}
+          onClick={handleSaveDesign}
+        >
+          <Save className="w-5 h-5 mr-2" />
+          {selectedImage && Object.keys(selections).length === 0 
+            ? 'Continue with Basic Design' 
+            : allSectionsComplete 
+              ? 'Confirm Design & Continue' 
+              : 'Please Complete All Sections'}
+        </Button>
       </div>
     </div>
   );

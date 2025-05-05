@@ -13,6 +13,8 @@ import BoutiquesPage from "./pages/BoutiquesPage";
 import BoutiqueDetailPage from "./pages/BoutiqueDetailPage";
 import ServiceOptionsPage from "./pages/ServiceOptionsPage";
 import CustomDesignPage from "./pages/CustomDesignPage";
+import PredesignedStylesPage from "./pages/PredesignedStylesPage";
+import StyleDetailsPage from "./pages/StyleDetailsPage";
 import ClothSelectionPage from "./pages/ClothSelectionPage";
 import MeasurementPage from "./pages/MeasurementPage";
 import OrderSummaryPage from "./pages/OrderSummaryPage";
@@ -50,7 +52,8 @@ const App: React.FC = () => (
                 <Route path="/boutique/:boutiqueId/service/:serviceId">
                   <Route index element={<ServiceOptionsPage />} />
                   <Route path="custom-design" element={<CustomDesignPage />} />
-                  <Route path="predesigned-styles" element={<CustomDesignPage />} />
+                  <Route path="predesigned-styles" element={<PredesignedStylesPage />} />
+                  <Route path="predesigned-styles/:styleId" element={<StyleDetailsPage />} />
                   <Route path="cloth-selection" element={<ClothSelectionPage />} />
                   <Route path="measurement" element={<MeasurementPage />} />
                   <Route path="delivery-address" element={<DeliveryAddressPage />} />
@@ -65,6 +68,7 @@ const App: React.FC = () => (
                 <Route path="/predesigned-styles" element={<CustomDesignPage />} />
                 <Route path="/cloth-selection" element={<PrivateRoute><ClothSelectionPage /></PrivateRoute>} />
                 <Route path="/measurement" element={<PrivateRoute><MeasurementPage /></PrivateRoute>} />
+                <Route path="/measurements" element={<PrivateRoute><MeasurementPage /></PrivateRoute>} />
                 <Route path="/delivery-address" element={<PrivateRoute><DeliveryAddressPage /></PrivateRoute>} />
                 <Route path="/order-summary" element={<PrivateRoute><OrderSummaryPage /></PrivateRoute>} />
                 <Route path="/pickup-scheduling" element={<PrivateRoute><PickupSchedulingPage /></PrivateRoute>} />

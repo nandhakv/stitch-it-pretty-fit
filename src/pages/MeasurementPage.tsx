@@ -1,23 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Ruler, Home, Package, Check, Info, ChevronRight, MapPin, Calendar, Clock } from 'lucide-react';
-import AddressSelector from '../components/AddressSelector';
+import { useNavigate } from 'react-router-dom';
+import { Ruler, Home, Package, Check, Info, ChevronRight, MapPin, Calendar, Clock, Navigation, Building, Briefcase, Loader, Plus, X } from 'lucide-react';
 import { useOrder } from '../utils/OrderContext';
+import { useAuth } from '../utils/AuthContext';
 import { mockApi } from '../utils/mockApi';
-import { MeasurementOption } from '../utils/types';
+import { MeasurementOption, Address } from '../utils/types';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { toast } from '@/components/ui/use-toast';
 
 const MeasurementPage: React.FC = () => {
   const navigate = useNavigate();
-  const { boutiqueId, serviceId } = useParams<{ boutiqueId: string; serviceId: string }>();
   const { order, updateOrder } = useOrder();
+  const { user, firebaseUser, isAuthenticated } = useAuth();
   const [measurementOptions, setMeasurementOptions] = useState<MeasurementOption[]>([]);
   const [selectedOption, setSelectedOption] = useState<"manual" | "homeService" | "oldGarment" | null>(order.measurementOption || null);
   const [loading, setLoading] = useState(true);
   const formRef = useRef<HTMLFormElement>(null);
   
   // State for address selection
-  const [showAddressSelector, setShowAddressSelector] = useState(false);
+  const [showAddressSheet, setShowAddressSheet] = useState(false);
   const [addressSelected, setAddressSelected] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState<Address | null>(order.deliveryAddress || null);
+  
+  // State for address management
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | undefined>(order.selectedAddressId);
   
   // State for scheduling
   const [selectedDate, setSelectedDate] = useState<string>('');
@@ -135,9 +143,122 @@ const MeasurementPage: React.FC = () => {
     }
   }, [measurements, selectedOption]);
   
-  const handleAddressSubmit = (pincode: string) => {
+  // Fetch addresses from API
+  const fetchAddresses = async () => {
+    if (!firebaseUser) return;
+    
+    try {
+      setLoadingAddresses(true);
+      const firebaseToken = await firebaseUser.getIdToken();
+      
+      console.log('Fetching addresses with token:', firebaseToken.substring(0, 10) + '...');
+      
+      // In a real app, you'd fetch from your actual API
+      // This is mocked for demonstration
+      setTimeout(() => {
+        // Mock data
+        const mockAddresses: Address[] = [
+          {
+            id: 'addr1',
+            fullName: 'Home',
+            addressLine1: '123 Main Street, Apartment 4B',
+            doorNo: '123',
+            pincode: '560001',
+            phone: '9876543210',
+            isDefault: true,
+            type: 'home',
+            area: 'MG Road'
+          },
+          {
+            id: 'addr2',
+            fullName: 'Office',
+            addressLine1: '456 Work Plaza, Floor 12',
+            doorNo: '456',
+            pincode: '560002',
+            phone: '9876543211',
+            isDefault: false,
+            type: 'work',
+            area: 'Whitefield'
+          },
+          {
+            id: 'addr3',
+            fullName: 'Parents Home',
+            addressLine1: '789 Family Lane',
+            doorNo: '789',
+            pincode: '600001',
+            phone: '9876543212',
+            isDefault: false,
+            type: 'home',
+            area: 'T Nagar'
+          }
+        ];
+
+        setAddresses(mockAddresses);
+        setLoadingAddresses(false);
+      }, 500);
+    } catch (error) {
+      console.error('Error loading addresses:', error);
+      toast({
+        title: "Failed to load addresses",
+        description: "There was an error loading your addresses. Please try again.",
+        variant: "destructive"
+      });
+      setLoadingAddresses(false);
+    }
+  };
+  
+  const handleAddressSelect = (address: Address) => {
+    // Update selected address
+    setSelectedAddress(address);
+    setSelectedAddressId(address.id);
     setAddressSelected(true);
-    setShowAddressSelector(false);
+    
+    // Update order context
+    updateOrder({
+      ...order,
+      deliveryAddress: address,
+      deliveryPincode: address.pincode,
+      selectedAddressId: address.id
+    });
+    
+    // Save to localStorage for persistence
+    localStorage.setItem('userPincode', address.pincode);
+    localStorage.setItem('selectedAddressId', address.id);
+    
+    // Close the address sheet
+    setShowAddressSheet(false);
+    
+    toast({
+      title: "Address Selected",
+      description: `Delivery address set to ${address.area}, ${address.pincode}`,
+    });
+  };
+  
+  const handleManualPincodeSubmit = (pincode: string) => {
+    setAddressSelected(true);
+    
+    // Update order with just the pincode (no full address)
+    updateOrder({
+      ...order,
+      deliveryPincode: pincode,
+      selectedAddressId: undefined,
+      deliveryAddress: undefined
+    });
+    
+    // Save to localStorage
+    localStorage.setItem('userPincode', pincode);
+    localStorage.removeItem('selectedAddressId');
+    
+    // Close the sheet
+    setShowAddressSheet(false);
+  };
+  
+  const handleAddressClick = () => {
+    // Fetch addresses when opening the sheet
+    if (isAuthenticated && firebaseUser) {
+      fetchAddresses();
+    }
+    setShowAddressSheet(true);
   };
   
   const isSchedulingValid = () => {
@@ -148,414 +269,573 @@ const MeasurementPage: React.FC = () => {
     // For home service, validate address and scheduling
     if (selectedOption === 'homeService') {
       if (!addressSelected) {
-        setShowAddressSelector(true);
+        setShowAddressSheet(true);
         return;
       }
-      
       if (!isSchedulingValid()) {
+        // Show an error or focus on the scheduling section
         return;
       }
     }
     
-    // For manual measurements, validate the form
+    // For old garment, validate address
+    if (selectedOption === 'oldGarment' && !addressSelected) {
+      setShowAddressSheet(true);
+      return;
+    }
+    
+    // For manual measurements, validate form
+    if (selectedOption === 'manual' && !isFormValid) {
+      // Form validation is handled by the isFormValid state
+      // Just focus on the form
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    
+    // Update order context with the selected option and data
+    const updatedOrder = { ...order, measurementOption: selectedOption };
+    
     if (selectedOption === 'manual') {
-      const requiredFields = [
-        'bust', 'waist', 'hips', 'shoulderToWaist', 
-        'armLength', 'armHole', 'armCircumference', 
-        'neckDepthFront', 'neckDepthBack'
-      ];
-      
-      const errors: Record<string, string> = {};
-      let valid = true;
-      
-      requiredFields.forEach(field => {
-        if (!measurements[field as keyof typeof measurements]) {
-          errors[field] = `${field.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} is required`;
-          valid = false;
-        }
-      });
-      
-      setFormErrors(errors);
-      
-      if (!valid) {
-        return;
-      }
+      updatedOrder.measurements = measurements;
+    } else if (selectedOption === 'homeService') {
+      // Store scheduling info in a compatible format
+      updatedOrder.scheduledDate = selectedDate;
+      updatedOrder.scheduledTime = selectedTimeSlot;
     }
     
-    updateOrder({
-      measurementOption: selectedOption,
-      measurements: selectedOption === 'manual' ? measurements : undefined,
-      scheduledDate: selectedOption === 'homeService' ? selectedDate : undefined,
-      scheduledTime: selectedOption === 'homeService' ? selectedTimeSlot : undefined
-    });
+    updateOrder(updatedOrder);
     
-    // Use nested route if params are available, otherwise use fallback route
-    if (boutiqueId && serviceId) {
-      navigate(`/boutique/${boutiqueId}/service/${serviceId}/order-summary`);
-    } else {
-      navigate('/order-summary');
-    }
+    // Navigate to next step
+    navigate('/delivery-address');
   };
-
+  
+  // Render skeleton loading state
+  if (loading) {
+    return (
+      <div className="container max-w-4xl mx-auto px-4 py-8">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-2/3 mb-6"></div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-40 bg-gray-200 rounded-xl"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Page header with design info - hidden on mobile */}
-      <div className="hidden md:block bg-gradient-to-r from-plum/90 to-plum/70 text-white py-5 md:py-8 px-4">
-        <div className="container mx-auto max-w-4xl">
-          <h1 className="text-2xl md:text-3xl font-bold mb-1 md:mb-2">Measurements</h1>
-          <p className="text-white/80 max-w-2xl text-sm md:text-base">
-            Choose how you'd like to provide measurements for your {order.service?.name || "item"} to ensure the perfect fit.
+    <div className="bg-gray-50 min-h-screen pb-20">
+      {/* Top navigation */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <div className="container max-w-4xl mx-auto px-4 md:px-6 py-3 md:py-4">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">
+            Measurement Details
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Select how you'd like to provide your measurements
           </p>
         </div>
       </div>
       
-      {/* Main content */}
-      <div className="container mx-auto md:p-6 lg:p-8 max-w-4xl px-0 md:px-4 pt-0 md:pt-6">
-        {/* Measurement options */}
-        <div className="bg-white md:rounded-xl shadow-sm overflow-hidden mb-6 rounded-none md:rounded-xl p-0">
-          <div className="p-5">
-            <h2 className="text-lg font-medium mb-4 flex items-center">
-              <Ruler className="w-5 h-5 mr-2 text-plum" />
-              Select Measurement Option
+      <div className="container max-w-4xl mx-auto px-4 md:px-6 pt-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+          <div className="p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Choose a Measurement Option
             </h2>
             
-            {loading ? (
-              <div className="flex justify-center my-6">
-                <div className="w-8 h-8 border-4 border-plum/30 border-t-plum rounded-full animate-spin"></div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 mb-6">
-                {measurementOptions.map((option) => (
-                  <div
-                    key={option.id}
-                    className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                      selectedOption === option.id ? 'border-plum bg-plum/5' : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                    onClick={() => handleOptionSelect(option.id)}
-                  >
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-plum/10 flex items-center justify-center mr-3">
-                        {getIconComponent(option.icon)}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium">{option.name}</h3>
-                        <p className="text-sm text-gray-500 mt-1">{option.description}</p>
-                      </div>
-                      <div className="ml-3 flex-shrink-0">
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                          selectedOption === option.id ? 'border-plum bg-plum' : 'border-gray-300'
-                        }`}>
-                          {selectedOption === option.id && (
-                            <Check className="w-3 h-3 text-white" />
-                          )}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+              {measurementOptions.map((option) => (
+                <button
+                  key={option.id}
+                  className={`flex flex-col items-center text-center p-4 md:p-5 border-2 rounded-xl transition-all ${
+                    selectedOption === option.id
+                      ? 'border-plum bg-plum/5'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                  onClick={() => handleOptionSelect(option.id as "manual" | "homeService" | "oldGarment")}
+                >
+                  <div className="w-12 h-12 rounded-full bg-plum/10 flex items-center justify-center mb-3">
+                    {getIconComponent(option.icon)}
+                  </div>
+                  <h3 className="font-medium text-gray-900 mb-1">{option.name}</h3>
+                  <p className="text-sm text-gray-500">{option.description}</p>
+                </button>
+              ))}
+            </div>
+            
+            {/* Selected option details */}
+            {selectedOption && (
+              <div className="mt-8">
+                {/* Home Service Option */}
+                {selectedOption === 'homeService' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 flex items-center">
+                        <MapPin className="w-5 h-5 text-plum mr-2" />
+                        Measurement Address
+                      </h3>
+                      
+                      <button
+                        className="w-full p-4 border border-gray-200 rounded-lg text-left flex justify-between items-center hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                        onClick={handleAddressClick}
+                      >
+                        <div>
+                          <span className="block font-medium">
+                            {selectedAddress ? selectedAddress.fullName : "Select Address"}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            {selectedAddress 
+                              ? `${selectedAddress.addressLine1}, ${selectedAddress.area}, ${selectedAddress.pincode}` 
+                              : "Choose where you'd like our tailor to visit"}
+                          </span>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                      </button>
+                      
+                      {/* Address Sheet */}
+                      {showAddressSheet && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
+                          <div className="bg-white w-full sm:w-[480px] sm:rounded-xl max-h-[90vh] overflow-hidden flex flex-col">
+                            {/* Header */}
+                            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+                              <h3 className="text-lg font-semibold">Select Address</h3>
+                              <button 
+                                className="p-1 rounded-full hover:bg-gray-100" 
+                                onClick={() => setShowAddressSheet(false)}
+                              >
+                                <X className="w-5 h-5" />
+                              </button>
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="flex-1 overflow-auto p-4">
+                              {loadingAddresses ? (
+                                <div className="flex justify-center items-center py-8">
+                                  <Loader className="w-6 h-6 text-plum animate-spin" />
+                                  <span className="ml-2 text-gray-600">Loading addresses...</span>
+                                </div>
+                              ) : isAuthenticated ? (
+                                <>
+                                  {addresses.length > 0 ? (
+                                    <RadioGroup defaultValue={selectedAddressId}>
+                                      <div className="space-y-3">
+                                        {addresses.map((address) => (
+                                          <div 
+                                            key={address.id} 
+                                            className={`border rounded-lg p-3 cursor-pointer transition-colors ${selectedAddressId === address.id ? 'border-plum bg-plum/5' : 'border-gray-200 hover:border-gray-300'}`}
+                                            onClick={() => handleAddressSelect(address)}
+                                          >
+                                            <div className="flex items-start">
+                                              <div className="mr-3 mt-0.5">
+                                                <RadioGroupItem value={address.id} id={address.id} />
+                                              </div>
+                                              <div className="flex-1">
+                                                <div className="flex items-center mb-1">
+                                                  <span className="font-medium">{address.fullName}</span>
+                                                  {address.isDefault && (
+                                                    <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">Default</span>
+                                                  )}
+                                                  {address.type === 'home' && <Home className="ml-auto w-4 h-4 text-gray-400" />}
+                                                  {address.type === 'work' && <Briefcase className="ml-auto w-4 h-4 text-gray-400" />}
+                                                  {address.type === 'other' && <MapPin className="ml-auto w-4 h-4 text-gray-400" />}
+                                                </div>
+                                                <div className="text-sm text-gray-600">
+                                                  {address.addressLine1}
+                                                </div>
+                                                <div className="text-sm text-gray-600">
+                                                  {address.area}, {address.pincode}
+                                                </div>
+                                                <div className="text-sm text-gray-600 mt-1">
+                                                  {address.phone}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </RadioGroup>
+                                  ) : (
+                                    <div className="text-center py-8">
+                                      <MapPin className="mx-auto h-10 w-10 text-gray-400 mb-3" />
+                                      <h3 className="text-lg font-medium text-gray-900 mb-1">No addresses found</h3>
+                                      <p className="text-gray-500 mb-4">You don't have any saved addresses yet.</p>
+                                      <button 
+                                        className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-plum rounded-md hover:bg-plum/90"
+                                        onClick={() => navigate('/addresses')}
+                                      >
+                                        <Plus className="mr-2 h-4 w-4" /> Add New Address
+                                      </button>
+                                    </div>
+                                  )}
+                                  
+                                  <div className="border-t border-gray-200 mt-4 pt-4">
+                                    <button 
+                                      className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-plum border border-plum rounded-md hover:bg-plum/5"
+                                      onClick={() => navigate('/addresses')}
+                                    >
+                                      <Plus className="mr-2 h-4 w-4" /> Add New Address
+                                    </button>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="space-y-4">
+                                  <div className="text-center py-6">
+                                    <h3 className="text-lg font-medium text-gray-900 mb-1">Enter Delivery Pincode</h3>
+                                    <p className="text-sm text-gray-500 mb-4">Please enter your pincode for tailor service availability.</p>
+                                    
+                                    <form className="max-w-xs mx-auto" onSubmit={(e) => {
+                                      e.preventDefault();
+                                      const input = e.currentTarget.querySelector('input');
+                                      if (input && input.value.length === 6) {
+                                        handleManualPincodeSubmit(input.value);
+                                      }
+                                    }}>
+                                      <div className="flex">
+                                        <input 
+                                          type="text" 
+                                          pattern="[0-9]*" 
+                                          inputMode="numeric" 
+                                          maxLength={6}
+                                          className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum" 
+                                          placeholder="Enter 6-digit pincode"
+                                        />
+                                        <button 
+                                          type="submit" 
+                                          className="bg-plum text-white px-4 py-2 rounded-r-md hover:bg-plum/90"
+                                        >
+                                          Apply
+                                        </button>
+                                      </div>
+                                    </form>
+                                  </div>
+                                  
+                                  <div className="text-center">
+                                    <p className="text-sm text-gray-500 mb-2">OR</p>
+                                    <button 
+                                      className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-plum border border-plum rounded-md hover:bg-plum/5"
+                                      onClick={() => {
+                                        // Get current location logic would go here
+                                        toast({
+                                          title: "Getting your location",
+                                          description: "Please allow location access when prompted."
+                                        });
+                                      }}
+                                    >
+                                      <Navigation className="mr-2 h-4 w-4" /> Use current location
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Appointment scheduling */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 flex items-center">
+                        <Calendar className="w-5 h-5 text-plum mr-2" />
+                        Schedule Appointment
+                      </h3>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-sm text-gray-700 mb-2">Select Date</p>
+                          <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
+                            {availableDates.map((date) => (
+                              <button
+                                key={date.value}
+                                className={`p-3 text-center border rounded-lg text-sm transition-colors ${
+                                  selectedDate === date.value
+                                    ? 'bg-plum text-white border-plum'
+                                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                }`}
+                                onClick={() => setSelectedDate(date.value)}
+                              >
+                                {date.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <p className="text-sm text-gray-700 mb-2">Select Time Slot</p>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {timeSlots.map((slot) => (
+                              <button
+                                key={slot}
+                                className={`p-3 text-center border rounded-lg text-sm transition-colors ${
+                                  selectedTimeSlot === slot
+                                    ? 'bg-plum text-white border-plum'
+                                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                }`}
+                                onClick={() => setSelectedTimeSlot(slot)}
+                              >
+                                <div className="flex items-center justify-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  <span>{slot}</span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-            
-            {selectedOption === "homeService" && (
-              <div className="border-t border-gray-100 pt-4 mt-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-sm text-blue-800 mb-4">
-                  <h3 className="font-medium mb-2 flex items-center">
-                    <Home className="w-4 h-4 mr-2" />
-                    Home Measurement Service
-                  </h3>
-                  <p className="mb-2">
-                    Our professional tailor will visit your address to take accurate measurements.
-                  </p>
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li>Service available within city limits</li>
-                    <li>Appointment scheduling required</li>
-                    <li>₹200 service charge applies</li>
-                  </ul>
-                </div>
+                )}
                 
-                {showAddressSelector ? (
-                  <div className="mb-4">
-                    <h3 className="text-md font-medium mb-3 flex items-center">
-                      <MapPin className="w-4 h-4 mr-2 text-plum" />
-                      Select Delivery Address
+                {/* Manual Measurements Option */}
+                {selectedOption === 'manual' && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center">
+                      <Ruler className="w-5 h-5 text-plum mr-2" />
+                      Enter Your Measurements
                     </h3>
-                    <AddressSelector onSubmit={handleAddressSubmit} />
+                    
+                    <form ref={formRef} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Bust (inches)</label>
+                          <input
+                            type="text"
+                            name="bust"
+                            value={measurements.bust}
+                            onChange={handleInputChange}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.bust ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="e.g., 36"
+                          />
+                          {formErrors.bust && <p className="text-red-500 text-xs mt-1">{formErrors.bust}</p>}
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Waist (inches)</label>
+                          <input
+                            type="text"
+                            name="waist"
+                            value={measurements.waist}
+                            onChange={handleInputChange}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.waist ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="e.g., 28"
+                          />
+                          {formErrors.waist && <p className="text-red-500 text-xs mt-1">{formErrors.waist}</p>}
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Hips (inches)</label>
+                          <input
+                            type="text"
+                            name="hips"
+                            value={measurements.hips}
+                            onChange={handleInputChange}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.hips ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="e.g., 38"
+                          />
+                          {formErrors.hips && <p className="text-red-500 text-xs mt-1">{formErrors.hips}</p>}
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Shoulder to Waist (inches)</label>
+                          <input
+                            type="text"
+                            name="shoulderToWaist"
+                            value={measurements.shoulderToWaist}
+                            onChange={handleInputChange}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.shoulderToWaist ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="e.g., 16"
+                          />
+                          {formErrors.shoulderToWaist && <p className="text-red-500 text-xs mt-1">{formErrors.shoulderToWaist}</p>}
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Arm Length (inches)</label>
+                          <input
+                            type="text"
+                            name="armLength"
+                            value={measurements.armLength}
+                            onChange={handleInputChange}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.armLength ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="e.g., 22"
+                          />
+                          {formErrors.armLength && <p className="text-red-500 text-xs mt-1">{formErrors.armLength}</p>}
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Arm Hole (inches)</label>
+                          <input
+                            type="text"
+                            name="armHole"
+                            value={measurements.armHole}
+                            onChange={handleInputChange}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.armHole ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="e.g., 16"
+                          />
+                          {formErrors.armHole && <p className="text-red-500 text-xs mt-1">{formErrors.armHole}</p>}
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Arm Circumference (inches)</label>
+                          <input
+                            type="text"
+                            name="armCircumference"
+                            value={measurements.armCircumference}
+                            onChange={handleInputChange}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.armCircumference ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="e.g., 12"
+                          />
+                          {formErrors.armCircumference && <p className="text-red-500 text-xs mt-1">{formErrors.armCircumference}</p>}
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Neck Depth (Front) (inches)</label>
+                          <input
+                            type="text"
+                            name="neckDepthFront"
+                            value={measurements.neckDepthFront}
+                            onChange={handleInputChange}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.neckDepthFront ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="e.g., 3"
+                          />
+                          {formErrors.neckDepthFront && <p className="text-red-500 text-xs mt-1">{formErrors.neckDepthFront}</p>}
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Neck Depth (Back) (inches)</label>
+                          <input
+                            type="text"
+                            name="neckDepthBack"
+                            value={measurements.neckDepthBack}
+                            onChange={handleInputChange}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.neckDepthBack ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="e.g., 2"
+                          />
+                          {formErrors.neckDepthBack && <p className="text-red-500 text-xs mt-1">{formErrors.neckDepthBack}</p>}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes (Optional)</label>
+                        <textarea
+                          name="additional"
+                          value={measurements.additional}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum min-h-[80px]"
+                          placeholder="Any specific requirements or details..."
+                        ></textarea>
+                      </div>
+                    </form>
                   </div>
-                ) : addressSelected ? (
-                  <div className="mb-6">
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-md font-medium flex items-center">
-                        <MapPin className="w-4 h-4 mr-2 text-plum" />
-                        Delivery Address
+                )}
+                
+                {/* Old Garment Option */}
+                {selectedOption === 'oldGarment' && (
+                  <div className="space-y-6">
+                    <div className="bg-plum/5 p-4 rounded-lg border border-plum/10">
+                      <h3 className="text-lg font-semibold mb-3 flex items-center">
+                        <Package className="w-5 h-5 text-plum mr-2" />
+                        Send Your Old Garment
                       </h3>
-                      <button 
-                        className="text-xs text-plum hover:text-plum/80 font-medium"
-                        onClick={() => setShowAddressSelector(true)}
+                      <p className="text-gray-700 mb-4">
+                        Please send us a well-fitting garment similar to what you'd like us to create. We'll use it to take accurate measurements.
+                      </p>
+                      <ul className="space-y-2 mb-4">
+                        <li className="flex items-start gap-2">
+                          <Check className="w-4 h-4 text-plum mt-0.5 flex-shrink-0" />
+                          <span className="text-sm">Package your garment securely</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-4 h-4 text-plum mt-0.5 flex-shrink-0" />
+                          <span className="text-sm">Ensure it's clean and pressed</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-4 h-4 text-plum mt-0.5 flex-shrink-0" />
+                          <span className="text-sm">We'll return it with your new order</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-4 h-4 text-plum mt-0.5 flex-shrink-0" />
+                          <span className="text-sm">Shipping instructions will be provided after order confirmation</span>
+                        </li>
+                      </ul>
+                    </div>
+                    
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 flex items-center">
+                        <MapPin className="w-5 h-5 text-plum mr-2" />
+                        Pickup Address
+                      </h3>
+                      
+                      <button
+                        className="w-full p-4 border border-gray-200 rounded-lg text-left flex justify-between items-center hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                        onClick={handleAddressClick}
                       >
-                        Change
+                        <div>
+                          <span className="block font-medium">
+                            {selectedAddress ? selectedAddress.fullName : "Select Address"}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            {selectedAddress 
+                              ? `${selectedAddress.addressLine1}, ${selectedAddress.area}, ${selectedAddress.pincode}` 
+                              : "Choose where we should pick up your garment"}
+                          </span>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
                       </button>
                     </div>
-                    
-                    <div className="bg-gray-50 p-3 rounded-md border border-gray-200 mb-6">
-                      <p className="text-sm font-medium text-gray-800">Home</p>
-                      <p className="text-xs text-gray-600 mt-1">123 Main Street, Apartment 4B</p>
-                      <p className="text-xs text-gray-600">Mumbai, Maharashtra 400001</p>
-                      <p className="text-xs text-gray-600">+91 9876543210</p>
-                    </div>
-                    
-                    <div className="mb-4">
-                      <h3 className="text-md font-medium mb-3 flex items-center">
-                        <Calendar className="w-4 h-4 mr-2 text-plum" />
-                        Select Appointment Date
-                      </h3>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-4">
-                        {availableDates.map(date => (
-                          <button
-                            key={date.value}
-                            className={`text-xs p-2 border rounded-md ${selectedDate === date.value ? 'bg-plum/10 border-plum text-plum font-medium' : 'border-gray-200 text-gray-700 hover:border-gray-300'}`}
-                            onClick={() => setSelectedDate(date.value)}
-                          >
-                            {date.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {selectedDate && (
-                      <div className="mb-4">
-                        <h3 className="text-md font-medium mb-3 flex items-center">
-                          <Clock className="w-4 h-4 mr-2 text-plum" />
-                          Select Time Slot
-                        </h3>
-                        <div className="grid grid-cols-2 gap-2">
-                          {timeSlots.map(slot => (
-                            <button
-                              key={slot}
-                              className={`text-xs p-2 border rounded-md ${selectedTimeSlot === slot ? 'bg-plum/10 border-plum text-plum font-medium' : 'border-gray-200 text-gray-700 hover:border-gray-300'}`}
-                              onClick={() => setSelectedTimeSlot(slot)}
-                            >
-                              {slot}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
-                ) : (
-                  <button
-                    className="w-full py-2.5 rounded-md bg-plum/10 text-plum font-medium hover:bg-plum/20 transition-colors mb-4 flex items-center justify-center"
-                    onClick={() => setShowAddressSelector(true)}
-                  >
-                    <MapPin className="w-4 h-4 mr-2" />
-                    Select Delivery Address
-                  </button>
                 )}
-              </div>
-            )}
-            
-            {selectedOption === "oldGarment" && (
-              <div className="border-t border-gray-100 pt-4 mt-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-sm text-blue-800">
-                  <h3 className="font-medium mb-2 flex items-center">
-                    <Package className="w-4 h-4 mr-2" />
-                    Using Existing Garment
-                  </h3>
-                  <p className="mb-2">
-                    You'll need to send us a well-fitting garment similar to what you're ordering.
-                  </p>
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li>Clean and press the garment before sending</li>
-                    <li>Our pickup service will collect it along with any fabric</li>
-                    <li>The garment will be returned with your order</li>
-                  </ul>
-                </div>
-              </div>
-            )}
-            
-            {selectedOption === "manual" && (
-              <div className="border-t border-gray-100 pt-4 mt-4">
-                <div className="flex items-center mb-4">
-                  <Info className="w-4 h-4 text-blue-500 mr-2" />
-                  <p className="text-sm text-gray-600">Enter your measurements in inches. For the most accurate results, use a fabric measuring tape.</p>
-                </div>
-                
-                <form ref={formRef} className="mt-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Bust</label>
-                      <input
-                        type="text"
-                        name="bust"
-                        value={measurements.bust}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.bust ? 'border-red-500' : 'border-gray-300'}`}
-                        placeholder="e.g., 36"
-                      />
-                      {formErrors.bust && <p className="text-red-500 text-xs mt-1">{formErrors.bust}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Waist</label>
-                      <input
-                        type="text"
-                        name="waist"
-                        value={measurements.waist}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.waist ? 'border-red-500' : 'border-gray-300'}`}
-                        placeholder="e.g., 28"
-                      />
-                      {formErrors.waist && <p className="text-red-500 text-xs mt-1">{formErrors.waist}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Hips</label>
-                      <input
-                        type="text"
-                        name="hips"
-                        value={measurements.hips}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.hips ? 'border-red-500' : 'border-gray-300'}`}
-                        placeholder="e.g., 38"
-                      />
-                      {formErrors.hips && <p className="text-red-500 text-xs mt-1">{formErrors.hips}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Shoulder to Waist</label>
-                      <input
-                        type="text"
-                        name="shoulderToWaist"
-                        value={measurements.shoulderToWaist}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.shoulderToWaist ? 'border-red-500' : 'border-gray-300'}`}
-                        placeholder="e.g., 16"
-                      />
-                      {formErrors.shoulderToWaist && <p className="text-red-500 text-xs mt-1">{formErrors.shoulderToWaist}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Arm Length</label>
-                      <input
-                        type="text"
-                        name="armLength"
-                        value={measurements.armLength}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.armLength ? 'border-red-500' : 'border-gray-300'}`}
-                        placeholder="e.g., 24"
-                      />
-                      {formErrors.armLength && <p className="text-red-500 text-xs mt-1">{formErrors.armLength}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Arm Hole</label>
-                      <input
-                        type="text"
-                        name="armHole"
-                        value={measurements.armHole}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.armHole ? 'border-red-500' : 'border-gray-300'}`}
-                        placeholder="e.g., 16"
-                      />
-                      {formErrors.armHole && <p className="text-red-500 text-xs mt-1">{formErrors.armHole}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Arm Circumference</label>
-                      <input
-                        type="text"
-                        name="armCircumference"
-                        value={measurements.armCircumference}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.armCircumference ? 'border-red-500' : 'border-gray-300'}`}
-                        placeholder="e.g., 12"
-                      />
-                      {formErrors.armCircumference && <p className="text-red-500 text-xs mt-1">{formErrors.armCircumference}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Neck Depth (Front)</label>
-                      <input
-                        type="text"
-                        name="neckDepthFront"
-                        value={measurements.neckDepthFront}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.neckDepthFront ? 'border-red-500' : 'border-gray-300'}`}
-                        placeholder="e.g., 3"
-                      />
-                      {formErrors.neckDepthFront && <p className="text-red-500 text-xs mt-1">{formErrors.neckDepthFront}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Neck Depth (Back)</label>
-                      <input
-                        type="text"
-                        name="neckDepthBack"
-                        value={measurements.neckDepthBack}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum ${formErrors.neckDepthBack ? 'border-red-500' : 'border-gray-300'}`}
-                        placeholder="e.g., 2"
-                      />
-                      {formErrors.neckDepthBack && <p className="text-red-500 text-xs mt-1">{formErrors.neckDepthBack}</p>}
-                    </div>
-                  </div>
-                  
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes (Optional)</label>
-                    <textarea
-                      name="additional"
-                      value={measurements.additional}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-plum/50 focus:border-plum min-h-[80px]"
-                      placeholder="Any specific requirements or details..."
-                    ></textarea>
-                  </div>
-                </form>
               </div>
             )}
           </div>
         </div>
         
         {/* Help section */}
-        <div className="bg-gray-50 border border-gray-200 md:rounded-xl p-4 md:p-6 mb-6 mx-4 md:mx-0">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Measurement Tips</h3>
-          <p className="text-gray-600 mb-2">
-            For the most accurate measurements, wear form-fitting clothes and stand straight with your arms relaxed at your sides.
-          </p>
-          <p className="text-gray-600">
-            If you're unsure about taking measurements yourself, our home measurement service or using an existing garment are excellent alternatives.
-          </p>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6 mb-20">
+          <div className="flex items-start gap-3">
+            <div className="bg-plum/10 p-2 rounded-full">
+              <Info className="w-5 h-5 text-plum" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Measurement Tips</h3>
+              <p className="text-gray-600 mb-2">
+                For the most accurate measurements, wear form-fitting clothes and stand straight with your arms relaxed at your sides.
+              </p>
+              <p className="text-gray-600">
+                If you're unsure about taking measurements yourself, our home measurement service or using an existing garment are excellent alternatives.
+              </p>
+            </div>
+          </div>
         </div>
-        
-        {/* Spacer to ensure content isn't hidden behind sticky button */}
-        <div className="h-24 md:h-20"></div>
-        
-        {/* Sticky Continue button */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 md:p-3 z-40 md:max-w-md md:mx-auto md:right-0 md:left-0 md:rounded-lg md:shadow-lg md:border md:bottom-6">
+      </div>
+      
+      {/* Sticky Continue button */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40">
+        <div className="container max-w-4xl mx-auto">
           <button 
             onClick={handleContinue}
-            className={`w-full py-3.5 md:py-3 rounded-xl font-medium transition-colors ${(selectedOption && 
+            className={`w-full py-3 rounded-xl font-medium transition-colors ${(selectedOption && 
               ((selectedOption === 'manual' && isFormValid) || 
-               (selectedOption === 'oldGarment') || 
-               (selectedOption === 'homeService' && addressSelected && isSchedulingValid()))) ? 
-              'bg-plum hover:bg-plum/90 text-white md:text-base md:tracking-wide md:font-semibold md:shadow-sm' : 
+              (selectedOption === 'oldGarment') || 
+              (selectedOption === 'homeService' && addressSelected && isSchedulingValid()))) ? 
+              'bg-plum hover:bg-plum/90 text-white font-semibold' : 
               'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
             disabled={!selectedOption || 
               (selectedOption === 'manual' && !isFormValid) || 
-              (selectedOption === 'homeService' && (!addressSelected || !isSchedulingValid()))}
+              (selectedOption === 'homeService' && (!addressSelected || !isSchedulingValid())) ||
+              (selectedOption === 'oldGarment' && !addressSelected)}
           >
             {!selectedOption ? (
               "Select a measurement option"
             ) : selectedOption === 'manual' && !isFormValid ? (
               "Complete all measurements"
-            ) : selectedOption === 'homeService' && !addressSelected ? (
+            ) : selectedOption === 'homeService' && !selectedAddress && !addressSelected ? (
               "Select delivery address"
             ) : selectedOption === 'homeService' && !isSchedulingValid() ? (
-              "Select appointment date and time"
+              "Select date and time"
             ) : (
-              <span className="flex items-center justify-center">
-                Continue to Order Summary
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </span>
+              "Continue to Delivery"
             )}
           </button>
         </div>

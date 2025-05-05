@@ -98,6 +98,16 @@ export interface PickupSlot {
   }[];
 }
 
+export interface MaterialSelection {
+  buyFromUs: boolean;
+  fabricDetails: {
+    id: string;
+    name: string;
+    price: number;
+    image?: string;
+  } | null;
+}
+
 export interface OrderDetails {
   deliveryPincode?: string;
   deliveryAddress?: Address;
@@ -105,6 +115,7 @@ export interface OrderDetails {
   boutique?: Boutique;
   service?: Service;
   designType?: "predesigned" | "custom";
+  materialSelection?: MaterialSelection;
   predesignedStyle?: {
     id: string;
     image: string;

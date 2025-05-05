@@ -4,11 +4,11 @@ import { Star, MapPin, Phone, ChevronLeft, Clock, CheckCircle2, Heart, Share2, M
 import { Boutique, Service } from '../utils/types';
 import { useOrder } from '../utils/OrderContext';
 import { toast } from "@/components/ui/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { DesignOptionsModal, StyleGalleryModal, UploadReferenceModal, StyleCustomizationModal } from '@/components/ServiceCustomization';
+import MaterialSelectionModal, { MaterialSelection } from '@/components/ServiceCustomization/MaterialSelectionModal';
 
 // Define extended types to match the API response
-interface ApiService {
+export interface ApiService {
   id: string;
   name: string;
   description: string;
@@ -26,7 +26,7 @@ interface ApiBoutique extends Omit<Boutique, 'services'> {
 }
 
 // Define types for design options
-interface PredesignedStyle {
+export interface PredesignedStyle {
   id: string;
   name: string;
   imageUrl: string;
@@ -71,7 +71,7 @@ const BoutiqueDetailPage: React.FC = () => {
   
   // New state for dialogs and selection flow
   const [selectedService, setSelectedService] = useState<ApiService | null>(null);
-  const [showOptionsDialog, setShowOptionsDialog] = useState(false);
+  const [showMaterialDialog, setShowMaterialDialog] = useState(false);
   const [showPredesignedDialog, setShowPredesignedDialog] = useState(false);
   const [predesignedStyles, setPredesignedStyles] = useState<PredesignedStyle[]>([]);
 
@@ -121,53 +121,64 @@ const BoutiqueDetailPage: React.FC = () => {
       const service = boutique.services.find((s) => s.id === serviceId);
       if (service) {
         setSelectedService(service);
-        setShowOptionsDialog(true);
+        // Show material selection directly instead of options dialog
+        setShowMaterialDialog(true);
       }
     }
   };
 
-  // Handler for design option selection
-  const handleDesignOptionSelect = (option: 'predesigned' | 'custom') => {
-    setShowOptionsDialog(false);
+  // State for new popup-based flow modals
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showCustomizationModal, setShowCustomizationModal] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [selectedPredesignedStyle, setSelectedPredesignedStyle] = useState<PredesignedStyle | null>(null);
+  
+  // Handler for material selection and design option selection
+  const handleMaterialAndDesignSelect = (
+    materialSelection: MaterialSelection,
+    option: 'predesigned' | 'custom'
+  ) => {
+    setShowMaterialDialog(false);
     
-    if (option === 'predesigned') {
-      // Fetch predesigned styles and show dialog
-      fetchPredesignedStyles();
-    } else {
-      // Navigate to the customization screen under nested routes for custom design
-      if (selectedService && boutique) {
-        // Convert the API service format to the app's Service type
-        const appService: Service = {
-          id: selectedService.id,
-          name: selectedService.name,
-          description: selectedService.description,
-          image: selectedService.imageUrl,
-          type: 'blouse' // Default type
-        };
-        
-        // Convert the API boutique format to the app's Boutique type
-        const appBoutique: Boutique = {
-          id: boutique.id,
-          name: boutique.name,
-          description: boutique.description,
-          address: boutique.address,
-          rating: boutique.rating,
-          reviewCount: boutique.reviewCount,
-          imageUrls: boutique.imageUrls,
-          services: boutique.services.map(s => s.id),
-          isOpen: boutique.isOpen,
-          featured: boutique.featured,
-          image: boutique.imageUrls[0],
-          location: `${boutique.address.city}, ${boutique.address.pincode}`
-        };
-        
-        updateOrder({ 
-          boutique: appBoutique, 
-          service: appService,
-          designType: 'custom'
-        });
-        
-        // Navigate to the customization screen under nested routes
+    if (selectedService && boutique) {
+      // Convert the API service format to the app's Service type
+      const appService: Service = {
+        id: selectedService.id,
+        name: selectedService.name,
+        description: selectedService.description,
+        image: selectedService.imageUrl,
+        type: getServiceType(selectedService.name) as 'blouse' | 'lehenga'
+      };
+      
+      // Convert the API boutique format to the app's Boutique type
+      const appBoutique: Boutique = {
+        id: boutique.id,
+        name: boutique.name,
+        description: boutique.description,
+        address: boutique.address,
+        rating: boutique.rating,
+        reviewCount: boutique.reviewCount,
+        imageUrls: boutique.imageUrls,
+        services: boutique.services.map(s => s.id),
+        isOpen: boutique.isOpen,
+        featured: boutique.featured,
+        image: boutique.imageUrls[0],
+        location: `${boutique.address.city}, ${boutique.address.pincode}`
+      };
+      
+      // Update order context with selection including material info
+      updateOrder({ 
+        boutique: appBoutique, 
+        service: appService,
+        designType: option,
+        materialSelection: materialSelection
+      });
+      
+      if (option === 'predesigned') {
+        // Navigate to predesigned styles page
+        navigate(`/boutique/${boutique.id}/service/${selectedService.id}/predesigned-styles`);
+      } else {
+        // Navigate to custom design page
         navigate(`/boutique/${boutique.id}/service/${selectedService.id}/custom-design`);
       }
     }
@@ -180,6 +191,7 @@ const BoutiqueDetailPage: React.FC = () => {
     try {
       setLoading(true);
       // Mock data for now - would be replaced with actual API call
+      // The styles would be different based on the service type
       const mockStyles: PredesignedStyle[] = [
         {
           id: "style1",
@@ -245,7 +257,7 @@ const BoutiqueDetailPage: React.FC = () => {
     }
   };
 
-  // Handle predesigned style selection
+  // Handle predesigned style selection - when user chooses "Select As Is"
   const handlePredesignedSelect = (style: PredesignedStyle) => {
     setShowPredesignedDialog(false);
     
@@ -256,7 +268,7 @@ const BoutiqueDetailPage: React.FC = () => {
         name: selectedService.name,
         description: selectedService.description,
         image: selectedService.imageUrl,
-        type: 'blouse' // Default type
+        type: getServiceType(selectedService.name) as 'blouse' | 'lehenga' // Get service type based on name
       };
       
       const appBoutique: Boutique = {
@@ -290,6 +302,92 @@ const BoutiqueDetailPage: React.FC = () => {
       // Navigate to measurements page
       navigate(`/measurements`);
     }
+  };
+  
+  // Handle "Customize This Style" for predesigned styles
+  const handleCustomizePredesignedStyle = (style: PredesignedStyle) => {
+    setShowPredesignedDialog(false);
+    setSelectedPredesignedStyle(style);
+    setShowCustomizationModal(true);
+  };
+  
+  // Handle uploaded image
+  const handleImageUploaded = (imageUrl: string) => {
+    setShowUploadModal(false);
+    setUploadedImage(imageUrl);
+    setShowCustomizationModal(true);
+  };
+  
+  // Handle completion of customization
+  const handleCustomizationComplete = (customizations: Record<string, string>) => {
+    setShowCustomizationModal(false);
+    
+    if (selectedService && boutique) {
+      // Convert to app types
+      const appService: Service = {
+        id: selectedService.id,
+        name: selectedService.name,
+        description: selectedService.description,
+        image: selectedService.imageUrl,
+        type: getServiceType(selectedService.name) as 'blouse' | 'lehenga' // Get service type based on name
+      };
+      
+      const appBoutique: Boutique = {
+        id: boutique.id,
+        name: boutique.name,
+        description: boutique.description,
+        address: boutique.address,
+        rating: boutique.rating,
+        reviewCount: boutique.reviewCount,
+        imageUrls: boutique.imageUrls,
+        services: boutique.services.map(s => s.id),
+        isOpen: boutique.isOpen,
+        featured: boutique.featured,
+        image: boutique.imageUrls[0],
+        location: `${boutique.address.city}, ${boutique.address.pincode}`
+      };
+      
+      // Determine design type and update order context
+      const designType = selectedPredesignedStyle ? 'predesigned-customized' : 'custom';
+      const orderUpdate: any = { 
+        boutique: appBoutique, 
+        service: appService,
+        designType,
+        customizations
+      };
+      
+      // Add uploaded image or predesigned style info if applicable
+      if (uploadedImage) {
+        orderUpdate.referenceImage = uploadedImage;
+      }
+      
+      if (selectedPredesignedStyle) {
+        orderUpdate.predesignedStyle = {
+          id: selectedPredesignedStyle.id,
+          name: selectedPredesignedStyle.name,
+          price: selectedPredesignedStyle.price,
+          image: selectedPredesignedStyle.imageUrl
+        };
+      }
+      
+      updateOrder(orderUpdate);
+      
+      // Navigate to measurements page
+      navigate(`/measurements`);
+    }
+  };
+  
+  // Helper function to determine service type based on service name
+  const getServiceType = (serviceName: string): string => {
+    const nameLower = serviceName.toLowerCase();
+    if (nameLower.includes('blouse')) return 'blouse';
+    if (nameLower.includes('dress')) return 'dress';
+    if (nameLower.includes('skirt')) return 'skirt';
+    if (nameLower.includes('shirt') || nameLower.includes('top')) return 'top';
+    if (nameLower.includes('pant') || nameLower.includes('trouser')) return 'pants';
+    if (nameLower.includes('saree')) return 'saree';
+    if (nameLower.includes('kurta')) return 'kurta';
+    return 'other';
   };
 
   if (loading) {
@@ -587,195 +685,39 @@ const BoutiqueDetailPage: React.FC = () => {
       </div>
       </div>
       
-      {/* Responsive Design Options - Dialog on Desktop, Sheet on Mobile */}
-      {isDesktop ? (
-        <Dialog open={showOptionsDialog} onOpenChange={setShowOptionsDialog}>
-          <DialogContent className="sm:max-w-[450px]">
-            <DialogHeader>
-              <DialogTitle>Choose Design Option</DialogTitle>
-            </DialogHeader>
-            <div className="grid grid-cols-2 gap-3 py-2">
-              <div 
-                className="flex flex-col border rounded-lg overflow-hidden cursor-pointer hover:border-plum hover:shadow-sm transition-all"
-                onClick={() => handleDesignOptionSelect('predesigned')}
-              >
-                <div className="h-28 bg-gradient-to-br from-plum/5 to-plum/20 flex items-center justify-center">
-                  <div className="flex flex-col items-center">
-                    <div className="bg-white rounded-full p-4 shadow-sm mb-2">
-                      <Shirt className="w-10 h-10 text-plum" strokeWidth={1.5} />
-                    </div>
-                    <div className="flex items-center">
-                      <Scissors className="w-3.5 h-3.5 text-plum mr-1" />
-                      <Sparkles className="w-3.5 h-3.5 text-plum" />
-                    </div>
-                  </div>
-                </div>
-                <div className="p-2.5">
-                  <h3 className="font-medium text-sm">Predesigned Styles</h3>
-                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">Choose from our curated designs</p>
-                </div>
-              </div>
-              
-              <div 
-                className="flex flex-col border rounded-lg overflow-hidden cursor-pointer hover:border-plum hover:shadow-sm transition-all"
-                onClick={() => handleDesignOptionSelect('custom')}
-              >
-                <div className="h-28 bg-gradient-to-br from-blue-500/5 to-blue-500/20 flex items-center justify-center">
-                  <div className="flex flex-col items-center">
-                    <div className="bg-white rounded-full p-4 shadow-sm mb-2">
-                      <Brush className="w-10 h-10 text-blue-500" strokeWidth={1.5} />
-                    </div>
-                    <div className="flex items-center">
-                      <PenTool className="w-3.5 h-3.5 text-blue-500 mr-1" />
-                      <Ruler className="w-3.5 h-3.5 text-blue-500" />
-                    </div>
-                  </div>
-                </div>
-                <div className="p-2.5">
-                  <h3 className="font-medium text-sm">Custom Design</h3>
-                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">Create your own unique design</p>
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      ) : (
-        <Sheet open={showOptionsDialog} onOpenChange={setShowOptionsDialog}>
-          <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
-            <SheetHeader className="text-left pb-0">
-              <SheetTitle>Choose Design Option</SheetTitle>
-            </SheetHeader>
-            <div className="mt-4 space-y-3 overflow-auto">
-              <div 
-                className="flex border rounded-lg overflow-hidden cursor-pointer hover:border-plum"
-                onClick={() => handleDesignOptionSelect('predesigned')}
-              >
-                <div className="w-24 h-24 bg-gradient-to-br from-plum/5 to-plum/20 flex-shrink-0 flex items-center justify-center">
-                  <div className="bg-white rounded-full p-3 shadow-sm">
-                    <Shirt className="w-8 h-8 text-plum" strokeWidth={1.5} />
-                  </div>
-                </div>
-                <div className="p-3 flex-1 flex flex-col justify-center">
-                  <h3 className="font-medium text-sm">Predesigned Styles</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Choose from our curated designs</p>
-                </div>
-              </div>
-              
-              <div 
-                className="flex border rounded-lg overflow-hidden cursor-pointer hover:border-plum"
-                onClick={() => handleDesignOptionSelect('custom')}
-              >
-                <div className="w-24 h-24 bg-gradient-to-br from-blue-500/5 to-blue-500/20 flex-shrink-0 flex items-center justify-center">
-                  <div className="bg-white rounded-full p-3 shadow-sm">
-                    <Brush className="w-8 h-8 text-blue-500" strokeWidth={1.5} />
-                  </div>
-                </div>
-                <div className="p-3 flex-1 flex flex-col justify-center">
-                  <h3 className="font-medium text-sm">Custom Design</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Create your own unique design</p>
-                </div>
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
+      {/* Material and Design Selection Modal */}
+      <MaterialSelectionModal
+        isOpen={showMaterialDialog}
+        onClose={() => setShowMaterialDialog(false)}
+        service={selectedService}
+        onContinue={handleMaterialAndDesignSelect}
+      />
       
-      {/* Predesigned Styles - Dialog on Desktop, Sheet on Mobile */}
-      {isDesktop ? (
-        <Dialog open={showPredesignedDialog} onOpenChange={setShowPredesignedDialog}>
-          <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Select a Predesigned Style</DialogTitle>
-            </DialogHeader>
-            <div className="grid grid-cols-2 gap-4 py-4">
-              {predesignedStyles.map(style => (
-                <div 
-                  key={style.id}
-                  className="border rounded-lg overflow-hidden cursor-pointer hover:border-plum hover:shadow-md transition-all"
-                  onClick={() => handlePredesignedSelect(style)}
-                >
-                  <img 
-                    src={style.imageUrl} 
-                    alt={style.name}
-                    className="w-full h-48 object-cover transition-transform hover:scale-105 duration-300"
-                    loading="lazy"
-                  />
-                  <div className="p-4">
-                    <h3 className="font-medium text-lg">{style.name}</h3>
-                    <p className="text-sm text-plum font-medium mt-1">₹{style.price}</p>
-                    <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
-                      <div className="text-xs text-gray-600 flex items-center">
-                        <span className="w-2 h-2 bg-plum/60 rounded-full mr-1.5"></span>
-                        Front: {style.configurations.frontNeck}
-                      </div>
-                      <div className="text-xs text-gray-600 flex items-center">
-                        <span className="w-2 h-2 bg-plum/60 rounded-full mr-1.5"></span>
-                        Back: {style.configurations.backNeck}
-                      </div>
-                      <div className="text-xs text-gray-600 flex items-center">
-                        <span className="w-2 h-2 bg-plum/60 rounded-full mr-1.5"></span>
-                        Embroidery: {style.configurations.embroidery}
-                      </div>
-                      <div className="text-xs text-gray-600 flex items-center">
-                        <span className="w-2 h-2 bg-plum/60 rounded-full mr-1.5"></span>
-                        Type: {style.configurations.blouseType}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
-      ) : (
-        <Sheet open={showPredesignedDialog} onOpenChange={setShowPredesignedDialog}>
-          <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl">
-            <SheetHeader className="text-left pb-0">
-              <SheetTitle>Select a Predesigned Style</SheetTitle>
-            </SheetHeader>
-            <div className="mt-6 space-y-4 overflow-auto pb-6">
-              {predesignedStyles.map(style => (
-                <div 
-                  key={style.id}
-                  className="border rounded-xl overflow-hidden cursor-pointer hover:border-plum mb-4"
-                  onClick={() => handlePredesignedSelect(style)}
-                >
-                  <img 
-                    src={style.imageUrl} 
-                    alt={style.name}
-                    className="w-full h-48 object-cover"
-                    loading="lazy"
-                  />
-                  <div className="p-4">
-                    <div className="flex justify-between items-center">
-                      <h3 className="font-medium">{style.name}</h3>
-                      <p className="text-sm text-plum font-medium">₹{style.price}</p>
-                    </div>
-                    <div className="mt-3 space-y-1.5">
-                      <div className="text-xs text-gray-600 flex items-center">
-                        <span className="w-2 h-2 bg-plum/60 rounded-full mr-1.5"></span>
-                        Front: {style.configurations.frontNeck}
-                      </div>
-                      <div className="text-xs text-gray-600 flex items-center">
-                        <span className="w-2 h-2 bg-plum/60 rounded-full mr-1.5"></span>
-                        Back: {style.configurations.backNeck}
-                      </div>
-                      <div className="text-xs text-gray-600 flex items-center">
-                        <span className="w-2 h-2 bg-plum/60 rounded-full mr-1.5"></span>
-                        Embroidery: {style.configurations.embroidery}
-                      </div>
-                      <div className="text-xs text-gray-600 flex items-center">
-                        <span className="w-2 h-2 bg-plum/60 rounded-full mr-1.5"></span>
-                        Type: {style.configurations.blouseType}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
+      <StyleGalleryModal
+        isOpen={showPredesignedDialog}
+        onClose={() => setShowPredesignedDialog(false)}
+        styles={predesignedStyles}
+        serviceName={selectedService?.name || 'Style'}
+        onSelectStyle={handlePredesignedSelect}
+        onCustomizeStyle={handleCustomizePredesignedStyle}
+        isLoading={loading}
+      />
+      
+      <UploadReferenceModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        serviceName={selectedService?.name || 'Design'}
+        onImageUploaded={handleImageUploaded}
+      />
+      
+      <StyleCustomizationModal
+        isOpen={showCustomizationModal}
+        onClose={() => setShowCustomizationModal(false)}
+        serviceName={selectedService?.name || 'Design'}
+        preselectedStyle={selectedPredesignedStyle || undefined}
+        uploadedImageUrl={uploadedImage || undefined}
+        onComplete={handleCustomizationComplete}
+      />
   </>
   );
 };
