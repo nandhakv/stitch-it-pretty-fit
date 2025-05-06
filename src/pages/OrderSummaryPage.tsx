@@ -1,12 +1,22 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Header from '../components/Header';
-import StepProgress from '../components/StepProgress';
 import { useOrder } from '../utils/OrderContext';
-import { MapPin, Calendar, Scissors, Package, Ruler } from 'lucide-react';
+import { 
+  MapPin, 
+  Calendar, 
+  Scissors, 
+  Package, 
+  Ruler, 
+  ChevronRight, 
+  Check, 
+  ArrowRight,
+  Clock,
+  CreditCard
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-const steps = ["Address", "Boutique", "Design", "Cloth", "Measure", "Order", "Pickup"];
+
 
 const OrderSummaryPage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,7 +24,13 @@ const OrderSummaryPage: React.FC = () => {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   
   const handleContinue = () => {
-    navigate('/pickup-scheduling');
+    // If we have a boutique and service ID, navigate to measurement page
+    if (order.boutique?.id && order.service?.id) {
+      navigate(`/boutique/${order.boutique.id}/service/${order.service.id}/measurement`);
+    } else {
+      // Otherwise, navigate to the measurement page directly
+      navigate('/measurement');
+    }
   };
   
   const calculatePrice = () => {
@@ -53,49 +69,71 @@ const OrderSummaryPage: React.FC = () => {
   const totalPrice = calculatePrice();
   
   return (
-    <div className="min-h-screen bg-cream">
-      <Header title="Order Summary" />
+    <div className="min-h-screen bg-gradient-to-b from-plum/5 to-white pb-20">
+      {/* Header */}
+      <div className="bg-white shadow-sm">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <h1 className="text-xl font-medium">Order Summary</h1>
+        </div>
+      </div>
       
-      <div className="step-container">
-        <StepProgress steps={steps} currentStep={5} />
+      <div className="container mx-auto px-4 py-6 max-w-lg">
         
-        <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
-          <h2 className="text-lg font-medium mb-4">Order Details</h2>
+        <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
+          <div className="bg-gradient-to-r from-plum/90 to-plum p-4 text-white">
+            <h2 className="text-lg font-medium">Order Summary</h2>
+          </div>
           
-          {/* Boutique & Service */}
-          {order.boutique && (
-            <div className="mb-4">
-              <h3 className="text-md font-medium mb-2">Selected Boutique</h3>
-              <div className="flex items-center">
-                <div className="w-12 h-12 mr-3">
-                  <img 
-                    src={order.boutique.image} 
-                    alt={order.boutique.name} 
-                    className="w-full h-full object-cover rounded-md"
-                  />
-                </div>
-                <div>
-                  <p className="font-medium">{order.boutique.name}</p>
-                  <p className="text-sm text-gray-500">{order.boutique.location}</p>
+          <div className="p-5">
+            {/* Boutique & Service */}
+            {order.boutique && (
+              <div className="mb-6">
+                <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Selected Boutique</h3>
+                <div className="flex items-center bg-gray-50 p-3 rounded-lg">
+                  <div className="w-16 h-16 mr-4 rounded-md overflow-hidden">
+                    <img 
+                      src={order.boutique.image || order.boutique.imageUrls?.[0]} 
+                      alt={order.boutique.name} 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{order.boutique.name}</p>
+                    <div className="flex items-center text-sm text-gray-500 mt-1">
+                      <MapPin className="w-3 h-3 mr-1" />
+                      <span>{order.boutique.address?.city || order.boutique.location}</span>
+                    </div>
+                    <div className="flex items-center text-sm text-plum mt-1">
+                      <span className="flex items-center">
+                        <span className="text-yellow-500 mr-1">★</span> 
+                        {order.boutique.rating}
+                      </span>
+                      <span className="mx-2">•</span>
+                      <span>{order.boutique.reviewCount} reviews</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-          
-          {order.service && (
-            <div className="mb-4 pb-4 border-b border-gray-100">
-              <h3 className="text-md font-medium mb-2">Selected Service</h3>
-              <p>{order.service.name}</p>
-              <p className="text-sm text-gray-500">{order.service.description}</p>
-            </div>
-          )}
+            )}
+            
+            {order.service && (
+              <div className="mb-6">
+                <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Selected Service</h3>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="font-medium text-gray-900">{order.service.name}</p>
+                  <p className="text-sm text-gray-600 mt-1">{order.service.description}</p>
+                </div>
+              </div>
+            )}
           
           {/* Design */}
-          <div className="mb-4 pb-4 border-b border-gray-100">
-            <div className="flex items-center mb-2">
-              <Scissors className="w-5 h-5 text-plum mr-2" />
-              <h3 className="text-md font-medium">Design Option</h3>
-            </div>
+          <div className="mb-6">
+            <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Design Option</h3>
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="flex items-center mb-2">
+                <Scissors className="w-5 h-5 text-plum mr-2" />
+                <h3 className="text-md font-medium text-gray-900">{order.designType === "predesigned" ? "Pre-designed Style" : "Custom Design"}</h3>
+              </div>
             
             <p>
               {order.designType === "predesigned" 
@@ -128,12 +166,16 @@ const OrderSummaryPage: React.FC = () => {
             )}
           </div>
           
+          </div>
+          
           {/* Cloth */}
-          <div className="mb-4 pb-4 border-b border-gray-100">
-            <div className="flex items-center mb-2">
-              <Package className="w-5 h-5 text-plum mr-2" />
-              <h3 className="text-md font-medium">Cloth Option</h3>
-            </div>
+          <div className="mb-6">
+            <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Cloth Option</h3>
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="flex items-center mb-2">
+                <Package className="w-5 h-5 text-plum mr-2" />
+                <h3 className="text-md font-medium text-gray-900">{order.clothOption === "own" ? "Using Own Cloth" : "Using Boutique-provided Cloth"}</h3>
+              </div>
             
             {order.clothOption === "own" ? (
               <div>
@@ -171,110 +213,120 @@ const OrderSummaryPage: React.FC = () => {
             )}
           </div>
           
-          {/* Measurements */}
-          <div className="mb-4 pb-4 border-b border-gray-100">
-            <div className="flex items-center mb-2">
-              <Ruler className="w-5 h-5 text-plum mr-2" />
-              <h3 className="text-md font-medium">Measurement Option</h3>
-            </div>
-            
-            {order.measurementOption === "manual" ? (
-              <div>
-                <p>Manual Measurements</p>
-                {order.measurements && (
-                  <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mt-2">
-                    {Object.entries(order.measurements).map(([key, value]) => {
-                      if (key === 'additional') return null;
-                      return (
-                        <div key={key}>
-                          <span className="font-medium">
-                            {key.replace(/([A-Z])/g, ' $1').trim()}:
-                          </span>{' '}
-                          {value}"
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ) : order.measurementOption === "homeService" ? (
-              <p>Home Measurement Service</p>
-            ) : (
-              <p>Sending Old Garment</p>
-            )}
           </div>
           
-          {/* Shipping Address */}
-          {order.pickupDetails?.address && (
-            <div className="mb-4">
+          {/* Measurements */}
+          <div className="mb-6">
+            <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Measurement Option</h3>
+            <div className="bg-gray-50 p-3 rounded-lg">
               <div className="flex items-center mb-2">
-                <MapPin className="w-5 h-5 text-plum mr-2" />
-                <h3 className="text-md font-medium">Delivery Address</h3>
+                <Ruler className="w-5 h-5 text-plum mr-2" />
+                <h3 className="text-md font-medium text-gray-900">
+                  {order.measurementOption === "manual" ? "Manual Measurements" : 
+                   order.measurementOption === "homeService" ? "Home Measurement Service" : 
+                   "Sending Old Garment"}
+                </h3>
               </div>
+            
+            {order.measurementOption === "manual" && order.measurements && (
+              <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-gray-600">
+                {Object.entries(order.measurements).map(([key, value]) => {
+                  if (key === 'additional') return null;
+                  return (
+                    <div key={key} className="bg-white p-2 rounded border border-gray-100">
+                      <span className="font-medium">
+                        {key.replace(/([A-Z])/g, ' $1').trim()}:
+                      </span>{' '}
+                      {value}"
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            </div>
+          </div>
+          
+          </div>
+          
+          {/* Delivery Address */}
+          {order.deliveryAddress && (
+            <div className="mb-6">
+              <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Delivery Address</h3>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <MapPin className="w-5 h-5 text-plum mr-2" />
+                  <h3 className="text-md font-medium text-gray-900">{order.deliveryAddress.fullName}</h3>
+                </div>
               
-              <div className="text-sm">
-                <p className="font-medium">{order.pickupDetails.address.fullName}</p>
+              <div className="text-sm text-gray-600">
                 <p>
-                  {order.pickupDetails.address.addressLine1}, 
-                  {order.pickupDetails.address.addressLine2 && ` ${order.pickupDetails.address.addressLine2},`}
+                  {order.deliveryAddress.doorNo}, {order.deliveryAddress.addressLine1}
                 </p>
                 <p>
-                  {order.pickupDetails.address.city}, {order.pickupDetails.address.state} - {order.pickupDetails.address.pincode}
+                  {order.deliveryAddress.area}, {order.deliveryAddress.pincode}
                 </p>
-                <p className="mt-1">Phone: {order.pickupDetails.address.phone}</p>
+                <p className="mt-1">Phone: {order.deliveryAddress.phone}</p>
+              </div>
               </div>
             </div>
           )}
           
           {/* Pricing & Timeline */}
-          <div className="bg-gray-50 p-3 rounded-md mt-6">
-            <div className="flex justify-between mb-1">
-              <span>Subtotal:</span>
-              <span>
-                {hasCustomUploads ? "Will be calculated after review" : `₹${totalPrice}`}
-              </span>
-            </div>
-            <div className="flex justify-between mb-1">
-              <span>Delivery Fee:</span>
-              <span>₹100</span>
-            </div>
-            <div className="flex justify-between font-medium text-lg mt-2 pt-2 border-t border-gray-200">
-              <span>Total:</span>
-              <span>
-                {hasCustomUploads ? "Will be calculated after review" : `₹${totalPrice + 100}`}
-              </span>
+          <div className="mt-8 bg-plum/5 p-4 rounded-lg border-l-4 border-plum">
+            <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Order Details</h3>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Subtotal:</span>
+                <span className="font-medium">
+                  {hasCustomUploads ? "Will be calculated after review" : `₹${totalPrice}`}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Delivery Fee:</span>
+                <span className="font-medium">₹100</span>
+              </div>
+              <div className="flex justify-between font-medium text-lg mt-4 pt-4 border-t border-plum/10">
+                <span className="text-gray-900">Total:</span>
+                <span className="text-plum">
+                  {hasCustomUploads ? "Will be calculated after review" : `₹${totalPrice + 100}`}
+                </span>
+              </div>
             </div>
             
-            <div className="mt-4 text-sm">
-              <div className="flex items-center">
-                <Calendar className="w-4 h-4 text-plum mr-1" />
-                <span>Estimated delivery time: <b>7-10 days</b></span>
+            <div className="mt-6 flex items-center p-3 bg-white rounded-lg border border-gray-100">
+              <Clock className="w-5 h-5 text-plum mr-3" />
+              <div>
+                <p className="font-medium text-gray-900">Estimated Delivery</p>
+                <p className="text-sm text-gray-600">7-10 business days</p>
               </div>
             </div>
           </div>
+          </div>
         </div>
         
-        <div className="mb-6">
-          <div className="flex items-start mb-4">
+        <div className="mt-8 mb-6">
+          <div className="flex items-start mb-6 bg-white p-4 rounded-lg border border-gray-100">
             <input
               type="checkbox"
               id="terms"
               checked={acceptedTerms}
               onChange={() => setAcceptedTerms(!acceptedTerms)}
-              className="mt-1 w-4 h-4 text-plum focus:ring-plum rounded"
+              className="mt-1 w-5 h-5 text-plum focus:ring-plum rounded"
             />
-            <label htmlFor="terms" className="ml-2 text-sm text-gray-700">
-              I agree to the <a href="#" className="text-plum underline">Terms of Service</a> and <a href="#" className="text-plum underline">Privacy Policy</a>. I understand that my order details will be processed according to these terms.
+            <label htmlFor="terms" className="ml-3 text-sm text-gray-700">
+              I agree to the <a href="#" className="text-plum font-medium">Terms of Service</a> and <a href="#" className="text-plum font-medium">Privacy Policy</a>. I understand that my order details will be processed according to these terms.
             </label>
           </div>
           
-          <button
+          <Button
             onClick={handleContinue}
-            className="btn-primary"
+            className="w-full bg-plum hover:bg-plum/90 text-white py-6 rounded-lg font-medium text-base flex items-center justify-center"
             disabled={!acceptedTerms}
           >
-            Schedule Pickup
-          </button>
+            Continue to Measurements
+            <ArrowRight className="ml-2 w-5 h-5" />
+          </Button>
         </div>
       </div>
     </div>

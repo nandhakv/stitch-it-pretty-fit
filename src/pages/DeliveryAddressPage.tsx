@@ -45,12 +45,8 @@ const DeliveryAddressPage: React.FC = () => {
       deliveryPincode: selectedAddress.pincode
     });
 
-    // Navigate to measurement page with appropriate route
-    if (boutiqueId && serviceId) {
-      navigate(`/boutique/${boutiqueId}/service/${serviceId}/measurement`);
-    } else {
-      navigate('/measurement');
-    }
+    // Navigate to order summary page
+    navigate('/order-summary');
   };
 
   return (

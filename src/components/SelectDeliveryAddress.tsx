@@ -7,12 +7,14 @@ import {
   Home,
   Building,
   Briefcase,
-  ChevronRight
+  ChevronRight,
+  Loader
 } from 'lucide-react';
 import { useAuth } from '../utils/AuthContext';
 import { Address } from '../utils/types';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { toast } from '@/components/ui/use-toast';
 
 interface SelectDeliveryAddressProps {
   selectedAddress?: Address | null;
@@ -24,31 +26,72 @@ const SelectDeliveryAddress: React.FC<SelectDeliveryAddressProps> = ({
   onAddressSelect
 }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, firebaseUser } = useAuth();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Load addresses from user data
+  // Load addresses on component mount
   useEffect(() => {
-    if (user && user.addresses) {
-      setAddresses(user.addresses);
+    const fetchAddresses = async () => {
+      if (!firebaseUser) return;
       
-      // If there's a default address and no address is selected, select the default
-      if (!selectedAddress) {
-        const defaultAddress = user.addresses.find(addr => addr.isDefault);
-        if (defaultAddress) {
-          setSelectedAddressId(defaultAddress.id);
-          onAddressSelect(defaultAddress);
-        } else if (user.addresses.length > 0) {
-          // If no default, select the first address
-          setSelectedAddressId(user.addresses[0].id);
-          onAddressSelect(user.addresses[0]);
+      try {
+        setIsLoading(true);
+        const firebaseToken = await firebaseUser.getIdToken();
+        
+        // Log for debugging
+        console.log('Fetching delivery addresses with token:', firebaseToken.substring(0, 10) + '...');
+        
+        const response = await fetch('http://localhost:3001/api/users/addresses', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${firebaseToken}`
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          console.log('Addresses fetched successfully:', data.addresses);
+          setAddresses(data.addresses);
+          
+          // If there's a default address and no address is selected, select the default
+          if (!selectedAddress) {
+            const defaultAddress = data.addresses.find(addr => addr.isDefault);
+            if (defaultAddress) {
+              setSelectedAddressId(defaultAddress.id);
+              onAddressSelect(defaultAddress);
+            } else if (data.addresses.length > 0) {
+              // If no default, select the first address
+              setSelectedAddressId(data.addresses[0].id);
+              onAddressSelect(data.addresses[0]);
+            }
+          } else {
+            setSelectedAddressId(selectedAddress.id);
+          }
+        } else {
+          toast({
+            title: "Failed to load addresses",
+            description: data.message || "There was an error loading your addresses.",
+            variant: "destructive"
+          });
         }
-      } else {
-        setSelectedAddressId(selectedAddress.id);
+      } catch (error) {
+        console.error('Error loading addresses:', error);
+        toast({
+          title: "Failed to load addresses",
+          description: "There was an error loading your addresses. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
       }
-    }
-  }, [user, selectedAddress, onAddressSelect]);
+    };
+    
+    fetchAddresses();
+  }, [firebaseUser]);
 
   const handleAddressSelect = (addressId: string) => {
     const address = addresses.find(addr => addr.id === addressId);
@@ -96,7 +139,14 @@ const SelectDeliveryAddress: React.FC<SelectDeliveryAddressProps> = ({
         </Button>
       </div>
 
-      {addresses.length === 0 ? (
+      {isLoading ? (
+        <div className="bg-white rounded-lg shadow-sm p-6 text-center">
+          <div className="flex flex-col justify-center items-center py-8">
+            <Loader className="w-8 h-8 text-plum animate-spin mb-3" />
+            <span className="text-gray-600 font-medium">Loading addresses...</span>
+          </div>
+        </div>
+      ) : addresses.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm p-6 text-center">
           <div className="w-16 h-16 bg-plum/10 rounded-full flex items-center justify-center mx-auto mb-4">
             <MapPin className="h-8 w-8 text-plum" />
