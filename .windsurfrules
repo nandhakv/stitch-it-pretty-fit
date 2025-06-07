@@ -2,3 +2,63 @@
 service. In this case, you should provide the API structure for the service like request and response.
 and endpoint which is needed in the format for copying.
 
+2 - React Coding Guidelines for Windsurf Editor:
+
+# Project Structure
+
+- Organize by features (components/editor, components/elements, hooks, contexts, state, services, utils)
+- Group related components in domain-specific folders
+
+# Component Design
+
+- Use small, focused functional components with TypeScript interfaces for props
+- Implement Redux Toolkit for global editor state
+- Create custom hooks for editor-specific logic (useCanvas, useSelection)
+- Design controlled components for interactive elements
+- Create reusable components for common UI patterns where possible
+- Use memoization for performance optimization
+
+# Styling
+
+- Use CSS Modules or Styled Components for scoped styling
+- Follow consistent naming conventions (BEM recommended)
+- Design intuitive visual cues for editor interactions
+
+# Code Quality
+
+- Configure ESLint and Prettier for consistent formatting
+- Use meaningful naming and concise code
+- Add comments for complex editor logic
+- Follow DRY principle by extracting reusable editor functions
+
+# Editor-Specific Data
+
+- Define clear TypeScript interfaces for windsurf elements
+- Implement efficient canvas data representation
+- Create serialization/deserialization utilities for designs
+- Build undo/redo functionality using state snapshots
+
+# Performance
+
+- Optimize canvas rendering with selective updates
+- Use React.memo, useMemo, and useCallback to prevent unnecessary re-renders
+- Implement efficient element property updates
+
+# Testing
+
+- Write unit tests for individual editor components
+- Create integration tests for tool interactions
+- Implement end-to-end tests for key editor workflows
+
+# Editor-Specific Features
+
+- Build robust geometric calculation utilities
+- Design intuitive user interactions for manipulating elements
+- Implement clear tool management system
+- Create intuitive layer management if supported
+
+3 - When user message starts with API means user is asking about the API structure for a particular
+service. In this case, you should provide the API structure for the service like request and response.
+and endpoint which is needed in the format for copying.
+
+4 - Clean up the dead and unused code after each iteration.

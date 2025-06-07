@@ -126,126 +126,122 @@ const OrderSummaryPage: React.FC = () => {
               </div>
             )}
           
-          {/* Design */}
-          <div className="mb-6">
-            <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Design Option</h3>
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="flex items-center mb-2">
-                <Scissors className="w-5 h-5 text-plum mr-2" />
-                <h3 className="text-md font-medium text-gray-900">{order.designType === "predesigned" ? "Pre-designed Style" : "Custom Design"}</h3>
-              </div>
+            {/* Design */}
+            <div className="mb-6">
+              <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Design Option</h3>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <Scissors className="w-5 h-5 text-plum mr-2" />
+                  <h3 className="text-md font-medium text-gray-900">{order.designType === "predesigned" ? "Pre-designed Style" : "Custom Design"}</h3>
+                </div>
             
-            <p>
-              {order.designType === "predesigned" 
-                ? "Pre-designed Style" 
-                : "Custom Design"}
-            </p>
-            
-            {order.designType === "custom" && order.customDesign && (
-              <div className="mt-2 text-sm">
-                {Object.keys(order.customDesign)
-                  .filter(key => key !== 'customUploads' && order.customDesign?.[key as keyof typeof order.customDesign])
-                  .map(key => {
-                    const option = order.customDesign?.[key as keyof typeof order.customDesign] as any;
-                    return (
-                      <div key={key} className="flex justify-between mb-1">
-                        <span>{key.replace(/([A-Z])/g, ' $1').trim()}: {option.name}</span>
-                        <span>₹{option.price}</span>
-                      </div>
-                    );
-                  })
-                }
-                
-                {order.customDesign.customUploads && 
-                 Object.keys(order.customDesign.customUploads).length > 0 && (
-                  <div className="text-plum italic mt-1">
-                    * Custom design uploads will be priced after review
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          
-          </div>
-          
-          {/* Cloth */}
-          <div className="mb-6">
-            <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Cloth Option</h3>
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="flex items-center mb-2">
-                <Package className="w-5 h-5 text-plum mr-2" />
-                <h3 className="text-md font-medium text-gray-900">{order.clothOption === "own" ? "Using Own Cloth" : "Using Boutique-provided Cloth"}</h3>
-              </div>
-            
-            {order.clothOption === "own" ? (
-              <div>
-                <p>Using Own Cloth</p>
-                {order.ownClothDetails && (
-                  <div className="text-sm text-gray-600 mt-1">
-                    <p>Material: {order.ownClothDetails.material}</p>
-                    <p>Color: {order.ownClothDetails.color}</p>
-                    <p>Quantity: {order.ownClothDetails.quantity}</p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div>
-                <p>Using Boutique-provided Cloth</p>
-                {order.boutiqueCloth && (
-                  <div className="flex justify-between mt-2">
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 mr-2">
-                        <img 
-                          src={order.boutiqueCloth.image} 
-                          alt={order.boutiqueCloth.name} 
-                          className="w-full h-full object-cover rounded-md"
-                        />
-                      </div>
-                      <div>
-                        <p className="font-medium">{order.boutiqueCloth.name}</p>
-                        <p className="text-sm text-gray-500">{order.boutiqueCloth.type}</p>
-                      </div>
+              <p>
+                {order.designType === "predesigned" 
+                  ? "Pre-designed Style" 
+                  : "Custom Design"}
+              </p>
+              
+              {order.designType === "custom" && order.customDesign && (
+                <div className="mt-2 text-sm">
+                  {Object.keys(order.customDesign)
+                    .filter(key => key !== 'customUploads' && order.customDesign?.[key as keyof typeof order.customDesign])
+                    .map(key => {
+                      const option = order.customDesign?.[key as keyof typeof order.customDesign] as any;
+                      return (
+                        <div key={key} className="flex justify-between mb-1">
+                          <span>{key.replace(/([A-Z])/g, ' $1').trim()}: {option.name}</span>
+                          <span>₹{option.price}</span>
+                        </div>
+                      );
+                    })
+                  }
+                  
+                  {order.customDesign.customUploads && 
+                   Object.keys(order.customDesign.customUploads).length > 0 && (
+                    <div className="text-plum italic mt-1">
+                      * Custom design uploads will be priced after review
                     </div>
-                    <p>₹{order.boutiqueCloth.price}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          
-          </div>
-          
-          {/* Measurements */}
-          <div className="mb-6">
-            <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Measurement Option</h3>
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="flex items-center mb-2">
-                <Ruler className="w-5 h-5 text-plum mr-2" />
-                <h3 className="text-md font-medium text-gray-900">
-                  {order.measurementOption === "manual" ? "Manual Measurements" : 
-                   order.measurementOption === "homeService" ? "Home Measurement Service" : 
-                   "Sending Old Garment"}
-                </h3>
-              </div>
-            
-            {order.measurementOption === "manual" && order.measurements && (
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-gray-600">
-                {Object.entries(order.measurements).map(([key, value]) => {
-                  if (key === 'additional') return null;
-                  return (
-                    <div key={key} className="bg-white p-2 rounded border border-gray-100">
-                      <span className="font-medium">
-                        {key.replace(/([A-Z])/g, ' $1').trim()}:
-                      </span>{' '}
-                      {value}"
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
             </div>
           </div>
           
+            {/* Cloth */}
+            <div className="mb-6">
+              <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Cloth Option</h3>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <Package className="w-5 h-5 text-plum mr-2" />
+                  <h3 className="text-md font-medium text-gray-900">{order.clothOption === "own" ? "Using Own Cloth" : "Using Boutique-provided Cloth"}</h3>
+                </div>
+            
+              {order.clothOption === "own" ? (
+                <div>
+                  <p>Using Own Cloth</p>
+                  {order.ownClothDetails && (
+                    <div className="text-sm text-gray-600 mt-1">
+                      <p>Material: {order.ownClothDetails.material}</p>
+                      <p>Color: {order.ownClothDetails.color}</p>
+                      <p>Quantity: {order.ownClothDetails.quantity}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <p>Using Boutique-provided Cloth</p>
+                  {order.boutiqueCloth && (
+                    <div className="flex justify-between mt-2">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 mr-2">
+                          <img 
+                            src={order.boutiqueCloth.image} 
+                            alt={order.boutiqueCloth.name} 
+                            className="w-full h-full object-cover rounded-md"
+                          />
+                        </div>
+                        <div>
+                          <p className="font-medium">{order.boutiqueCloth.name}</p>
+                          <p className="text-sm text-gray-500">{order.boutiqueCloth.type}</p>
+                        </div>
+                      </div>
+                      <p>₹{order.boutiqueCloth.price}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          
+            {/* Measurements */}
+            <div className="mb-6">
+              <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Measurement Option</h3>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <Ruler className="w-5 h-5 text-plum mr-2" />
+                  <h3 className="text-md font-medium text-gray-900">
+                    {order.measurementOption === "manual" ? "Manual Measurements" : 
+                     order.measurementOption === "homeService" ? "Home Measurement Service" : 
+                     "Sending Old Garment"}
+                  </h3>
+                </div>
+            
+              {order.measurementOption === "manual" && order.measurements && (
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-gray-600">
+                  {Object.entries(order.measurements).map(([key, value]) => {
+                    if (key === 'additional') return null;
+                    return (
+                      <div key={key} className="bg-white p-2 rounded border border-gray-100">
+                        <span className="font-medium">
+                          {key.replace(/([A-Z])/g, ' $1').trim()}:
+                        </span>{' '}
+                        {value}"
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
           
           {/* Delivery Address */}
@@ -258,53 +254,52 @@ const OrderSummaryPage: React.FC = () => {
                   <h3 className="text-md font-medium text-gray-900">{order.deliveryAddress.fullName}</h3>
                 </div>
               
-              <div className="text-sm text-gray-600">
-                <p>
-                  {order.deliveryAddress.doorNo}, {order.deliveryAddress.addressLine1}
-                </p>
-                <p>
-                  {order.deliveryAddress.area}, {order.deliveryAddress.pincode}
-                </p>
-                <p className="mt-1">Phone: {order.deliveryAddress.phone}</p>
-              </div>
+                <div className="text-sm text-gray-600">
+                  <p>
+                    {order.deliveryAddress.doorNo}, {order.deliveryAddress.addressLine1}
+                  </p>
+                  <p>
+                    {order.deliveryAddress.area}, {order.deliveryAddress.pincode}
+                  </p>
+                  <p className="mt-1">Phone: {order.deliveryAddress.phone}</p>
+                </div>
               </div>
             </div>
           )}
           
-          {/* Pricing & Timeline */}
-          <div className="mt-8 bg-plum/5 p-4 rounded-lg border-l-4 border-plum">
-            <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Order Details</h3>
+            {/* Pricing & Timeline */}
+            <div className="mt-8 bg-plum/5 p-4 rounded-lg border-l-4 border-plum">
+              <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-3">Order Details</h3>
             
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Subtotal:</span>
-                <span className="font-medium">
-                  {hasCustomUploads ? "Will be calculated after review" : `₹${totalPrice}`}
-                </span>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Subtotal:</span>
+                  <span className="font-medium">
+                    {hasCustomUploads ? "Will be calculated after review" : `₹${totalPrice}`}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Delivery Fee:</span>
+                  <span className="font-medium">₹100</span>
+                </div>
+                <div className="flex justify-between font-medium text-lg mt-4 pt-4 border-t border-plum/10">
+                  <span className="text-gray-900">Total:</span>
+                  <span className="text-plum">
+                    {hasCustomUploads ? "Will be calculated after review" : `₹${totalPrice + 100}`}
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Delivery Fee:</span>
-                <span className="font-medium">₹100</span>
-              </div>
-              <div className="flex justify-between font-medium text-lg mt-4 pt-4 border-t border-plum/10">
-                <span className="text-gray-900">Total:</span>
-                <span className="text-plum">
-                  {hasCustomUploads ? "Will be calculated after review" : `₹${totalPrice + 100}`}
-                </span>
+              
+              <div className="mt-6 flex items-center p-3 bg-white rounded-lg border border-gray-100">
+                <Clock className="w-5 h-5 text-plum mr-3" />
+                <div>
+                  <p className="font-medium text-gray-900">Estimated Delivery</p>
+                  <p className="text-sm text-gray-600">7-10 business days</p>
+                </div>
               </div>
             </div>
-            
-            <div className="mt-6 flex items-center p-3 bg-white rounded-lg border border-gray-100">
-              <Clock className="w-5 h-5 text-plum mr-3" />
-              <div>
-                <p className="font-medium text-gray-900">Estimated Delivery</p>
-                <p className="text-sm text-gray-600">7-10 business days</p>
-              </div>
-            </div>
-          </div>
           </div>
         </div>
-        
         <div className="mt-8 mb-6">
           <div className="flex items-start mb-6 bg-white p-4 rounded-lg border border-gray-100">
             <input

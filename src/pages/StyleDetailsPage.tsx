@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Sparkles, Heart, ArrowRight, ChevronDown, Edit, Save, X } from 'lucide-react';
+import ImageWithFallback from '../components/ImageWithFallback';
+import { ArrowLeft, CheckCircle2, Sparkles, Heart, ArrowRight, ChevronDown } from 'lucide-react';
+import { getStyleDetails } from '../services/api';
 import { useOrder } from '../utils/OrderContext';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
   SelectContent,
@@ -19,9 +21,34 @@ import {
 import { PredesignedStyle } from './BoutiqueDetailPage';
 import { DesignOption } from '../utils/types';
 import { toast } from '@/components/ui/use-toast';
+import IncludedConfigurations from '@/components/IncludedConfigurations';
 
+// Define types
 interface LocationState {
   style?: PredesignedStyle;
+}
+
+// Extended PredesignedStyle interface to include the API properties
+// Import the Review interface
+import { Review } from '../services/api/designApi';
+
+interface ExtendedPredesignedStyle extends PredesignedStyle {
+  customizationOptions?: Array<{
+    name: string;
+    id: string;
+    options: string[] | Array<{name: string; isDefault?: boolean}>;
+    defaultValue?: string;
+  }>;
+  presetConfigurations?: Record<string, string | boolean>;
+  features?: string[];
+  description?: string;
+  additionalDetails?: Record<string, string>;
+  isPredesigned?: boolean;
+  rating?: number;
+  reviewCount?: number;
+  reviews?: any[];
+  imageUrl: string;
+  imageUrls?: string[];
 }
 
 interface CustomizationOptions {
@@ -29,6 +56,8 @@ interface CustomizationOptions {
   backNeck: string[];
   embroidery: string[];
   blouseType: string[];
+  color: string[];
+  buttons: string[];
 }
 
 const StyleDetailsPage: React.FC = () => {
@@ -36,34 +65,26 @@ const StyleDetailsPage: React.FC = () => {
   const { boutiqueId, serviceId, styleId } = useParams<{ boutiqueId: string; serviceId: string; styleId: string }>();
   const location = useLocation();
   const { order, updateOrder } = useOrder();
-  const [style, setStyle] = useState<PredesignedStyle | null>(null);
+  const [style, setStyle] = useState<ExtendedPredesignedStyle | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isCustomizing, setIsCustomizing] = useState(false);
-  const [customizedStyle, setCustomizedStyle] = useState<PredesignedStyle | null>(null);
+  const [customizedStyle, setCustomizedStyle] = useState<ExtendedPredesignedStyle | null>(null);
   const [customizationOptions, setCustomizationOptions] = useState<CustomizationOptions>({
     frontNeck: [],
     backNeck: [],
     embroidery: [],
-    blouseType: []
+    blouseType: [],
+    color: [],
+    buttons: []
   });
   const [totalPrice, setTotalPrice] = useState<number>(0);
   const [priceAdjustments, setPriceAdjustments] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    // Check if style was passed through location state
-    const locationState = location.state as LocationState;
-    if (locationState?.style) {
-      setStyle(locationState.style);
-      setCustomizedStyle(locationState.style);
-      fetchCustomizationOptions();
-      setLoading(false);
-      return;
-    }
-
-    // Otherwise fetch the style data based on styleId
+    // Always fetch the style data based on styleId to ensure API call is made
     fetchStyleData();
-  }, [styleId, location.state]);
+  }, [styleId]);
   
   useEffect(() => {
     if (customizedStyle) {
@@ -77,86 +98,140 @@ const StyleDetailsPage: React.FC = () => {
     }
   }, [customizedStyle, priceAdjustments]);
 
-  const fetchCustomizationOptions = async () => {
-    // This would normally be an API call to fetch available options
-    // Mock data for now
-    setCustomizationOptions({
-      frontNeck: ["Round", "Square", "V-Neck", "Sweetheart", "Boat Neck", "Halter"],
-      backNeck: ["Round", "V-Shape", "U-Shape", "Deep U", "Keyhole", "Square"],
-      embroidery: ["Floral", "Minimal", "Heavy Gold", "Sequin", "Beaded", "Traditional", "None"],
-      blouseType: ["Princess Cut", "Sleeveless", "Full Sleeve", "Cap Sleeve", "Elbow Length", "Peplum"]
+  const fetchCustomizationOptions = (apiStyleData: any) => {
+    // Use the API data instead of mock data
+    if (!apiStyleData || !apiStyleData.customizationOptions) {
+      console.error('No customization options available from API');
+      return;
+    }
+    
+    console.log('API customization options:', apiStyleData.customizationOptions);
+    
+    // Extract customization options directly from the API response
+    const apiOptions = apiStyleData.customizationOptions;
+    
+    // Create a mapping for our UI structure
+    const mappedOptions: CustomizationOptions = {
+      frontNeck: [],
+      backNeck: [],
+      embroidery: [],
+      blouseType: [],
+      color: [],
+      buttons: []
+    };
+    
+    // Map the API options to our UI structure
+    apiOptions.forEach((option: any) => {
+      console.log('Processing option:', option);
+      
+      // Helper function to extract string values from option array
+      const extractOptions = (optArray: any[]): string[] => {
+        return optArray.map((opt: any) => 
+          typeof opt === 'string' ? opt : opt.name || ''
+        ).filter(Boolean);
+      };
+      
+      // Log each option ID and name for debugging
+      console.log(`Processing option ID: ${option.id}, Name: ${option.name}`);
+      
+      if (option.id === 'collarStyle') {
+        // Map collarStyle from API to frontNeck in our UI
+        console.log('Mapping collarStyle to frontNeck:', option.options);
+        if (Array.isArray(option.options)) {
+          mappedOptions.frontNeck = extractOptions(option.options);
+        }
+      } else if (option.id === 'cuffStyle') {
+        // Map cuffStyle from API to backNeck in our UI
+        console.log('Mapping cuffStyle to backNeck:', option.options);
+        if (Array.isArray(option.options)) {
+          mappedOptions.backNeck = extractOptions(option.options);
+        }
+      } else if (option.id === 'pocket' || option.id === 'fabric') {
+        // These could be considered embroidery options in our UI
+        if (Array.isArray(option.options)) {
+          const values = extractOptions(option.options);
+          mappedOptions.embroidery = [...mappedOptions.embroidery, ...values];
+        }
+      } else if (option.id === 'fit') {
+        if (Array.isArray(option.options)) {
+          mappedOptions.blouseType = extractOptions(option.options);
+        }
+      } else if (option.id === 'color') {
+        if (Array.isArray(option.options)) {
+          mappedOptions.color = extractOptions(option.options);
+        }
+      } else if (option.id === 'buttons') {
+        if (Array.isArray(option.options)) {
+          mappedOptions.buttons = extractOptions(option.options);
+        }
+      }
     });
     
-    // Set price adjustments for premium options
-    setPriceAdjustments({
-      "Heavy Gold": 300,
-      "Sequin": 250,
-      "Beaded": 400,
-      "Full Sleeve": 150,
-      "Peplum": 200
-    });
+    setCustomizationOptions(mappedOptions);
+    
+    // Calculate price adjustments based on material and complexity
+    const priceAdj: Record<string, number> = {};
+    
+    // Add premium options with price adjustments
+    priceAdj['Silk Blend'] = 300;
+    priceAdj['Oxford'] = 200;
+    priceAdj['Horn'] = 150;
+    priceAdj['Mother of Pearl'] = 200;
+    priceAdj['Double'] = 100;
+    
+    setPriceAdjustments(priceAdj);
   };
   
   const fetchStyleData = async () => {
     setLoading(true);
     try {
-      // Mock data for now - would be replaced with actual API call
-      const mockStyles: PredesignedStyle[] = [
-        {
-          id: "style1",
-          name: "Classic Embroidered",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse1.jpg?alt=media",
-          price: 1299,
-          configurations: {
-            frontNeck: "Round",
-            backNeck: "V-Shape",
-            embroidery: "Floral",
-            blouseType: "Princess Cut"
-          }
-        },
-        {
-          id: "style2",
-          name: "Modern Cut",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse2.jpg?alt=media",
-          price: 1499,
-          configurations: {
-            frontNeck: "Sweetheart",
-            backNeck: "Deep U",
-            embroidery: "Minimal",
-            blouseType: "Sleeveless"
-          }
-        },
-        {
-          id: "style3",
-          name: "Traditional Silk",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse3.jpg?alt=media",
-          price: 1699,
-          configurations: {
-            frontNeck: "Square",
-            backNeck: "Round",
-            embroidery: "Heavy Gold",
-            blouseType: "Full Sleeve"
-          }
-        },
-        {
-          id: "style4",
-          name: "Contemporary Chic",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse4.jpg?alt=media",
-          price: 1899,
-          configurations: {
-            frontNeck: "Boat Neck",
-            backNeck: "Keyhole",
-            embroidery: "Sequin",
-            blouseType: "Cap Sleeve"
-          }
-        }
-      ];
+      if (!styleId) {
+        throw new Error('Style ID is required');
+      }
       
-      const foundStyle = mockStyles.find(s => s.id === styleId);
-      if (foundStyle) {
-        setStyle(foundStyle);
-        setCustomizedStyle(foundStyle);
-        fetchCustomizationOptions();
+      console.log(`Fetching style details for styleId: ${styleId}`);
+      // Fetch style details from API
+      const styleDetails = await getStyleDetails(styleId);
+      console.log('API Response:', styleDetails);
+      
+      // Convert API response to the format expected by the component
+      const styleData: ExtendedPredesignedStyle = {
+        id: styleDetails.id,
+        name: styleDetails.name,
+        // Ensure we handle imageUrls as an array and imageUrl is always a string
+        imageUrl: styleDetails.thumbnail || 
+          (Array.isArray(styleDetails.imageUrls) && styleDetails.imageUrls.length > 0 ? 
+            styleDetails.imageUrls[0] : 
+            (typeof styleDetails.imageUrls === 'string' ? styleDetails.imageUrls : '')),
+        imageUrls: Array.isArray(styleDetails.imageUrls) ? styleDetails.imageUrls : styleDetails.imageUrls ? [styleDetails.imageUrls] : [],
+        price: styleDetails.price,
+        configurations: styleDetails.presetSpecifications ? {
+          frontNeck: styleDetails.presetSpecifications.collarStyle || '',
+          backNeck: styleDetails.presetSpecifications.cuffStyle || '',
+          embroidery: styleDetails.presetSpecifications.embroidery || '',
+          blouseType: styleDetails.category || ''
+        } : {
+          frontNeck: '',
+          backNeck: '',
+          embroidery: '',
+          blouseType: styleDetails.category || ''
+        },
+        customizationOptions: styleDetails.customizationOptions,
+        features: styleDetails.features,
+        presetConfigurations: styleDetails.presetSpecifications,
+        isPredesigned: styleDetails.isPredesigned,
+        description: styleDetails.description,
+        // Include rating, reviewCount, and reviews directly from API response
+        rating: styleDetails.rating,
+        reviewCount: styleDetails.reviewCount,
+        reviews: styleDetails.reviews
+      };
+      
+      if (styleData) {
+        setStyle(styleData);
+        setCustomizedStyle(styleData);
+        // Pass the API data to fetchCustomizationOptions
+        fetchCustomizationOptions(styleDetails);
       } else {
         toast({
           title: "Error",
@@ -194,20 +269,61 @@ const StyleDetailsPage: React.FC = () => {
   };
   
   const toggleCustomization = () => {
+    // Show a message to the user that we're entering customization mode using the API data
+    console.log('Toggling customization mode with API data');
+    
+    // Get price adjustments from API response
+    if (style?.customizationOptions && !isCustomizing) {
+      // Log that we're using API data for customization
+      console.log('Using API customization options:', style.customizationOptions);
+    }
+    
     setIsCustomizing(!isCustomizing);
   };
   
-  const handleOptionChange = (optionType: 'frontNeck' | 'backNeck' | 'embroidery' | 'blouseType', value: string) => {
+  const handleOptionChange = (optionType: string, value: string) => {
     if (!customizedStyle) return;
     
-    // Clone the customized style and update the specific configuration
-    setCustomizedStyle({
-      ...customizedStyle,
-      configurations: {
-        ...customizedStyle.configurations,
-        [optionType]: value
+    console.log(`Changing ${optionType} to ${value} using API data`);
+    
+    if (optionType === 'frontNeck' || optionType === 'backNeck' || optionType === 'embroidery' || optionType === 'blouseType') {
+      // Clone the customized style and update the specific configuration
+      setCustomizedStyle({
+        ...customizedStyle,
+        configurations: {
+          ...customizedStyle.configurations,
+          [optionType]: value
+        }
+      });
+      
+      // Update the presetConfigurations based on our mapping
+      const presetKey = 
+        optionType === 'frontNeck' ? 'collarStyle' : 
+        optionType === 'backNeck' ? 'cuffStyle' : 
+        optionType === 'embroidery' && value.includes('Silk') ? 'fabric' :
+        optionType === 'embroidery' && ['None', 'Single', 'Double'].includes(value) ? 'pocket' :
+        optionType === 'blouseType' ? 'fit' : null;
+      
+      if (presetKey && customizedStyle.presetConfigurations) {
+        // Update the preset configuration with the new value
+        setCustomizedStyle({
+          ...customizedStyle,
+          presetConfigurations: {
+            ...customizedStyle.presetConfigurations,
+            [presetKey]: value
+          }
+        });
       }
-    });
+    } else {
+      // Handle API-based customization options
+      setCustomizedStyle({
+        ...customizedStyle,
+        presetConfigurations: {
+          ...(customizedStyle.presetConfigurations || {}),
+          [optionType]: value
+        }
+      });
+    }
     
     toast({
       title: "Option updated",
@@ -219,7 +335,7 @@ const StyleDetailsPage: React.FC = () => {
   const saveCustomization = () => {
     if (!customizedStyle) return;
     
-    // Store the configurations in the order context's customDesign field 
+    // Store the configurations in the order context
     updateOrder({
       ...order,
       predesignedStyle: {
@@ -227,13 +343,6 @@ const StyleDetailsPage: React.FC = () => {
         name: `Customized ${customizedStyle.name}`,
         price: totalPrice,
         image: customizedStyle.imageUrl
-      },
-      customDesign: {
-        // Store configuration details in the customDesign field using the expected structure
-        neckFront: generateDesignOption('neckFront', customizedStyle.configurations.frontNeck),
-        neckBack: generateDesignOption('neckBack', customizedStyle.configurations.backNeck),
-        embroidery: generateDesignOption('embroidery', customizedStyle.configurations.embroidery),
-        blouseType: generateDesignOption('blouseType', customizedStyle.configurations.blouseType)
       }
     });
     
@@ -245,35 +354,7 @@ const StyleDetailsPage: React.FC = () => {
       variant: "default"
     });
     
-    // Navigate to measurements after saving customization
     navigate('/measurements');
-  };
-
-  const handleCustomize = () => {
-    if (!style) return;
-    
-    updateOrder({
-      ...order,
-      predesignedStyle: {
-        id: style.id,
-        name: style.name,
-        price: style.price,
-        image: style.imageUrl
-      }
-    });
-    
-    navigate(`/boutique/${boutiqueId}/service/${serviceId}/custom-design`);
-  };
-
-    // Helper function to generate compliant DesignOption objects
-  const generateDesignOption = (type: 'embroidery' | 'blouseType' | 'neckFront' | 'neckBack', value: string): DesignOption => {
-    return {
-      id: `${type}-${value.toLowerCase().replace(/\s+/g, '-')}`,
-      name: value,
-      type: type,
-      image: `/images/design-options/${type}/${value.toLowerCase().replace(/\s+/g, '-')}.jpg`,
-      price: priceAdjustments[value] || 0
-    };
   };
 
   const toggleFavorite = () => {
@@ -331,7 +412,7 @@ const StyleDetailsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-[2rem] md:pt-[3.8rem] pb-36">
+    <div className="min-h-screen bg-gray-50 pt-[2rem] md:pt-[3.8rem] pb-32">
       {/* Top Navigation Bar */}
       <div className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 z-10 flex items-center px-4">
         <button 
@@ -354,30 +435,48 @@ const StyleDetailsPage: React.FC = () => {
       <div className="px-4 pt-1">
         {/* Style Image */}
         <div className="mt-2 mb-3 rounded-xl overflow-hidden bg-white shadow-sm">
-          <img 
+          <ImageWithFallback 
             src={style.imageUrl} 
             alt={style.name}
-            className="w-full h-96 object-cover"
-            onError={(e) => {
-              e.currentTarget.src = '/images/placeholder-design.jpg';
-            }}
+            className="w-full h-64 md:h-96 object-cover" /* Reduced height for mobile */
+            loading="lazy"
+            fallbackSrc="/images/placeholder-design.jpg"
+            maxRetries={0}
           />
         </div>
         
         {/* Style Title and Price */}
         <div className="mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900">{style.name}</h2>
-          <div className="flex justify-between items-center mt-1">
-            <p className="text-xl font-bold text-plum">₹{style.price}</p>
-            <div className="flex items-center text-sm text-green-600">
-              <div className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></div>
-              <span>Available Now</span>
+          <h2 className="text-2xl font-semibold text-gray-900">Embroidered Silk Blouse</h2>
+          
+          <div className="mt-2 flex justify-between items-start">
+            <div className="flex items-center">
+              <p className="text-2xl font-bold text-plum">₹3500</p>
+            </div>
+            
+            <div className="flex items-center gap-1">
+              <Star className="h-5 w-5 text-yellow-400 fill-yellow-400" />
+              <span className="text-sm text-gray-600">0</span>
+              <span className="text-sm text-gray-600">|</span>
+              <span className="text-sm text-gray-600">0 reviews</span>
+            </div>
+          </div>
+          
+          <p className="text-xs text-gray-600 mt-1">Est. delivery: 7 days</p>
+        </div>
+            
+            <div className="flex items-center gap-2">
+              <div className="flex items-center">
+                <span className="text-yellow-500">★</span>
+                <span className="text-sm text-gray-600 ml-1">{style.rating || 0}</span>
+              </div>
+              <span className="text-sm text-gray-400">|</span>
+              <span className="text-sm text-gray-600">{style.reviewCount || 0} reviews</span>
             </div>
           </div>
         </div>
         
-        {/* Tabs for Style Information */}
-        <Tabs defaultValue="details" className="mb-8">
+        <Tabs defaultValue="details" className="mb-20">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="preview">Preview</TabsTrigger>
@@ -386,301 +485,332 @@ const StyleDetailsPage: React.FC = () => {
           
           <TabsContent value="details" className="pt-4">
             <div className="space-y-6">
-              <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold flex items-center">
-                    <Sparkles className="w-5 h-5 text-plum mr-2" />
-                    {isCustomizing ? 'Customize Style' : 'Included Configurations'}
+              {/* Style Description */}
+              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <h3 className="text-lg font-semibold mb-2">Description</h3>
+                <p className="text-gray-700">Intricately embroidered silk blouse with back hook closure and short sleeves.</p>
+              </div>
+              
+              {/* Boutique Profile - simplified version */}
+              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <h3 className="text-lg font-semibold mb-3">Boutique</h3>
+                <div className="flex items-center">
+                  <div className="h-12 w-12 rounded-full overflow-hidden bg-gray-200 mr-3 border border-gray-200">
+                    <ImageWithFallback 
+                      src="https://firebasestorage.googleapis.com/v0/b/tailor-app-71fe2.firebasestorage.app/o/HomePage-Carousal%2Fcarousal-2.jpg?alt=media&token=e204b0d6-21ea-4aa8-9518-dcde5bfeae8c" 
+                      alt="Style Stitch" 
+                      className="h-full w-full object-cover"
+                      fallbackSrc="/images/placeholder-boutique.jpg"
+                    />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-gray-900">Style Stitch</h4>
+                    <div className="flex items-center mt-1">
+                      <div className="flex items-center">
+                        <span className="text-yellow-500">★</span>
+                        <span className="ml-1 text-sm font-medium text-gray-700">4.6</span>
+                      </div>
+                      <span className="mx-1 text-gray-400">•</span>
+                      <span className="text-sm text-gray-600">93 reviews</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Any other details section would go here */}
+                <div className="bg-white p-5 rounded-xl border border-plum/10 shadow-sm relative overflow-hidden">
+                  {/* Subtle background pattern */}
+                  <div className="absolute top-0 right-0 w-32 h-32 opacity-5 rounded-full bg-plum -m-8"></div>
+                  <div className="absolute bottom-0 left-0 w-24 h-24 opacity-5 rounded-full bg-plum -m-6"></div>
+                  
+                  <h3 className="text-lg font-semibold mb-4 text-gray-900 flex items-center gap-2">
+                    <span>Designer Boutique</span>
+                    <span className="text-xs px-2 py-0.5 bg-plum/10 text-plum rounded-full">Verified</span>
                   </h3>
                   
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={toggleCustomization}
-                    className="flex items-center text-plum">
-                    {isCustomizing ? (
-                      <>
-                        <X className="w-4 h-4 mr-1" /> Cancel
-                      </>
-                    ) : (
-                      <>
-                        <Edit className="w-4 h-4 mr-1" /> Customize
-                      </>
-                    )}
-                  </Button>
-                </div>
-                
-                {isCustomizing ? (
-                  <div className="space-y-6">
-                    {/* Front Neck Selection */}
+                  <div className="flex items-center">
+                    <div className="h-16 w-16 rounded-full overflow-hidden bg-gray-200 mr-4 border-2 border-plum/20 shadow-md">
+                      <ImageWithFallback 
+                        src={style.boutique.coverImageUrl || '/images/placeholder-boutique.jpg'} 
+                        alt={style.boutique.name} 
+                        className="h-full w-full object-cover"
+                        fallbackSrc="/images/placeholder-boutique.jpg"
+                      />
+                    </div>
                     <div>
-                      <Label className="text-gray-500 text-sm mb-2 block">Front Neck Style</Label>
-                      <Select 
-                        defaultValue={customizedStyle?.configurations.frontNeck} 
-                        onValueChange={(value) => handleOptionChange('frontNeck', value)}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select front neck style" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
+                      <h4 className="font-semibold text-lg text-plum">{style.boutique.name}</h4>
+                      <div className="flex items-center mt-1">
+                        <div className="flex items-center">
+                          <div className="flex">
+                            {[...Array(5)].map((_, i) => (
+                              <span key={i} className={`${i < Math.round(style.boutique.ratings || 4.6) ? 'text-yellow-500' : 'text-gray-300'}`}>★</span>
+                            ))}
+                          </div>
+                          <span className="ml-1 text-sm font-medium text-gray-700">{style.boutique.ratings || 4.6}</span>
+                        </div>
+                        <span className="mx-1 text-gray-400">•</span>
+                        <span className="text-sm text-gray-600">{style.boutique.reviewCount} reviews</span>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">{style.boutique.description?.substring(0, 80) || "Contemporary designs with traditional craftsmanship"}...</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end mt-3">
+                    <button className="text-sm text-plum font-medium flex items-center hover:underline">
+                      View Boutique <ArrowRight className="h-3 w-3 ml-1" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="mb-4">
+                <div className="bg-white p-3 md:p-5 rounded-xl border border-gray-100 shadow-sm">
+                  <h3 className="text-lg font-semibold mb-3">
+                    {isCustomizing ? 'Customize Your Design' : 'Included Configurations'}
+                  </h3>
+                  
+                  {/* Show either the customization UI or the included configurations based on isCustomizing state */}
+                  {isCustomizing ? (
+                    <div>
+                      {/* Front Neck Options */}
+                      {customizationOptions.frontNeck.length > 0 && (
+                        <div className="mb-5">
+                          <h4 className="font-medium mb-2">Front Neck Style</h4>
+                          <div className="grid grid-cols-2 gap-2">
                             {customizationOptions.frontNeck.map((option) => (
-                              <SelectItem key={option} value={option}>
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    {/* Back Neck Selection */}
-                    <div>
-                      <Label className="text-gray-500 text-sm mb-2 block">Back Neck Style</Label>
-                      <Select 
-                        defaultValue={customizedStyle?.configurations.backNeck} 
-                        onValueChange={(value) => handleOptionChange('backNeck', value)}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select back neck style" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            {customizationOptions.backNeck.map((option) => (
-                              <SelectItem key={option} value={option}>
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    {/* Embroidery Selection */}
-                    <div>
-                      <Label className="text-gray-500 text-sm mb-2 block">Embroidery Style</Label>
-                      <RadioGroup 
-                        defaultValue={customizedStyle?.configurations.embroidery} 
-                        onValueChange={(value) => handleOptionChange('embroidery', value)}
-                        className="grid grid-cols-2 gap-2"
-                      >
-                        {customizationOptions.embroidery.map((option) => {
-                          const hasExtraCharge = priceAdjustments[option] > 0;
-                          return (
-                            <div key={option} className="relative">
-                              <RadioGroupItem value={option} id={`embroidery-${option}`} className="peer sr-only" />
-                              <Label 
-                                htmlFor={`embroidery-${option}`} 
-                                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-white p-3 hover:bg-gray-50 hover:border-gray-200 peer-data-[state=checked]:border-plum peer-data-[state=checked]:bg-plum/5"
+                              <button
+                                key={option}
+                                onClick={() => handleOptionChange('frontNeck', option)}
+                                className={`p-3 border rounded-lg text-sm ${customizedStyle?.configurations.frontNeck === option
+                                  ? 'bg-plum/10 border-plum text-plum font-medium'
+                                  : 'border-gray-200 hover:border-plum/50'
+                                  }`}
                               >
-                                <span>{option}</span>
-                                {hasExtraCharge && (
-                                  <span className="text-xs text-gray-500 mt-1">+₹{priceAdjustments[option]}</span>
-                                )}
-                              </Label>
-                            </div>
-                          );
-                        })}
-                      </RadioGroup>
-                    </div>
-                    
-                    {/* Blouse Type Selection */}
-                    <div>
-                      <Label className="text-gray-500 text-sm mb-2 block">Blouse Type</Label>
-                      <RadioGroup 
-                        defaultValue={customizedStyle?.configurations.blouseType} 
-                        onValueChange={(value) => handleOptionChange('blouseType', value)}
-                        className="grid grid-cols-2 gap-2"
-                      >
-                        {customizationOptions.blouseType.map((option) => {
-                          const hasExtraCharge = priceAdjustments[option] > 0;
-                          return (
-                            <div key={option} className="relative">
-                              <RadioGroupItem value={option} id={`blouse-${option}`} className="peer sr-only" />
-                              <Label 
-                                htmlFor={`blouse-${option}`} 
-                                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-white p-3 hover:bg-gray-50 peer-data-[state=checked]:border-plum peer-data-[state=checked]:bg-plum/5"
-                              >
-                                <span>{option}</span>
-                                {hasExtraCharge && (
-                                  <span className="text-xs text-gray-500 mt-1">+₹{priceAdjustments[option]}</span>
-                                )}
-                              </Label>
-                            </div>
-                          );
-                        })}
-                      </RadioGroup>
-                    </div>
-                    
-                    {/* Price Calculation */}
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium">Total Price:</span>
-                        <span className="text-lg font-bold text-plum">₹{totalPrice}</span>
-                      </div>
-                      {totalPrice !== style?.price && (
-                        <p className="text-xs text-gray-500 mt-1">Includes customization charges</p>
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       )}
+                      
+                      {/* Back Neck Options */}
+                      {customizationOptions.backNeck.length > 0 && (
+                        <div className="mb-5">
+                          <h4 className="font-medium mb-2">Back Neck Style</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            {customizationOptions.backNeck.map((option) => (
+                              <button
+                                key={option}
+                                onClick={() => handleOptionChange('backNeck', option)}
+                                className={`p-3 border rounded-lg text-sm ${customizedStyle?.configurations.backNeck === option
+                                  ? 'bg-plum/10 border-plum text-plum font-medium'
+                                  : 'border-gray-200 hover:border-plum/50'
+                                  }`}
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Embroidery Options */}
+                      {customizationOptions.embroidery.length > 0 && (
+                        <div className="mb-5">
+                          <h4 className="font-medium mb-2">Material & Details</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            {customizationOptions.embroidery.map((option) => (
+                              <button
+                                key={option}
+                                onClick={() => handleOptionChange('embroidery', option)}
+                                className={`p-3 border rounded-lg text-sm ${customizedStyle?.configurations.embroidery === option
+                                  ? 'bg-plum/10 border-plum text-plum font-medium'
+                                  : 'border-gray-200 hover:border-plum/50'
+                                  }`}
+                              >
+                                {option}
+                                {priceAdjustments[option] ? ` (+₹${priceAdjustments[option]})` : ''}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Style Type Options */}
+                      {customizationOptions.blouseType.length > 0 && (
+                        <div className="mb-5">
+                          <h4 className="font-medium mb-2">Fit Style</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            {customizationOptions.blouseType.map((option) => (
+                              <button
+                                key={option}
+                                onClick={() => handleOptionChange('blouseType', option)}
+                                className={`p-3 border rounded-lg text-sm ${customizedStyle?.configurations.blouseType === option
+                                  ? 'bg-plum/10 border-plum text-plum font-medium'
+                                  : 'border-gray-200 hover:border-plum/50'
+                                  }`}
+                              >
+                                {option}
+                                {priceAdjustments[option] ? ` (+₹${priceAdjustments[option]})` : ''}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Color Options */}
+                      {customizationOptions.color.length > 0 && (
+                        <div className="mb-5">
+                          <h4 className="font-medium mb-2">Color</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            {customizationOptions.color.map((option) => (
+                              <button
+                                key={option}
+                                onClick={() => handleOptionChange('color', option)}
+                                className={`p-3 border rounded-lg text-sm ${customizedStyle?.configurations.color === option
+                                  ? 'bg-plum/10 border-plum text-plum font-medium'
+                                  : 'border-gray-200 hover:border-plum/50'
+                                  }`}
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Button Options */}
+                      {customizationOptions.buttons.length > 0 && (
+                        <div className="mb-5">
+                          <h4 className="font-medium mb-2">Buttons</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            {customizationOptions.buttons.map((option) => (
+                              <button
+                                key={option}
+                                onClick={() => handleOptionChange('buttons', option)}
+                                className={`p-3 border rounded-lg text-sm ${customizedStyle?.configurations.buttons === option
+                                  ? 'bg-plum/10 border-plum text-plum font-medium'
+                                  : 'border-gray-200 hover:border-plum/50'
+                                  }`}
+                              >
+                                {option}
+                                {priceAdjustments[option] ? ` (+₹${priceAdjustments[option]})` : ''}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <Button 
+                        className="w-full bg-plum hover:bg-plum/90 mt-4"
+                        onClick={saveCustomization}
+                      >
+                        Save Customization
+                      </Button>
                     </div>
-                    
-                    <Button 
-                      className="w-full mt-2 bg-plum hover:bg-plum/90"
-                      onClick={saveCustomization}
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save & Continue
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
-                    <div className="flex items-center">
-                      <CheckCircle2 className="w-5 h-5 text-plum mr-3 flex-shrink-0" />
-                      <div>
-                        <span className="text-gray-500 block text-sm">Front Neck</span>
-                        <span className="font-medium">{customizedStyle?.configurations.frontNeck || style?.configurations.frontNeck}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <CheckCircle2 className="w-5 h-5 text-plum mr-3 flex-shrink-0" />
-                      <div>
-                        <span className="text-gray-500 block text-sm">Back Neck</span>
-                        <span className="font-medium">{customizedStyle?.configurations.backNeck || style?.configurations.backNeck}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <CheckCircle2 className="w-5 h-5 text-plum mr-3 flex-shrink-0" />
-                      <div>
-                        <span className="text-gray-500 block text-sm">Embroidery</span>
-                        <span className="font-medium">{customizedStyle?.configurations.embroidery || style?.configurations.embroidery}</span>
-                        {customizedStyle?.configurations.embroidery && priceAdjustments[customizedStyle.configurations.embroidery] > 0 && (
-                          <Badge variant="secondary" className="ml-2 text-xs">+₹{priceAdjustments[customizedStyle.configurations.embroidery]}</Badge>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <CheckCircle2 className="w-5 h-5 text-plum mr-3 flex-shrink-0" />
-                      <div>
-                        <span className="text-gray-500 block text-sm">Blouse Type</span>
-                        <span className="font-medium">{customizedStyle?.configurations.blouseType || style?.configurations.blouseType}</span>
-                        {customizedStyle?.configurations.blouseType && priceAdjustments[customizedStyle.configurations.blouseType] > 0 && (
-                          <Badge variant="secondary" className="ml-2 text-xs">+₹{priceAdjustments[customizedStyle.configurations.blouseType]}</Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                <h3 className="text-lg font-semibold mb-3">Description</h3>
-                <p className="text-gray-600">
-                  A beautifully crafted {style.name.toLowerCase()} with {style.configurations.embroidery.toLowerCase()} embroidery, 
-                  featuring a {style.configurations.frontNeck.toLowerCase()} front neck design and 
-                  {style.configurations.backNeck.toLowerCase()} back style. Perfect for both casual and formal occasions.
-                </p>
-                
-                <h3 className="text-lg font-semibold mt-6 mb-3">Features</h3>
-                <ul className="list-disc list-inside text-gray-600 space-y-1">
-                  <li>Premium quality fabric</li>
-                  <li>Hand-crafted {style.configurations.embroidery} detailing</li>
-                  <li>Contemporary {style.configurations.blouseType} design</li>
-                  <li>Perfect fit with customized measurements</li>
-                </ul>
-              </div>
-              
-              <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                <h3 className="text-lg font-semibold mb-3">Delivery Information</h3>
-                <p className="text-gray-600 mb-3">
-                  Standard delivery in 7-10 business days after measurements. Rush delivery available for an additional fee.
-                </p>
-                <div className="flex items-center text-sm text-gray-600 mt-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-500 mr-2" />
-                  <span>Free alterations within 15 days of delivery</span>
+                  ) : (
+                    <IncludedConfigurations 
+                      style={style} 
+                      priceAdjustments={priceAdjustments}
+                    />
+                  )}
                 </div>
               </div>
+              {/* Description container removed as requested */}
+
+              {/* Removed redundant customization panel as it's now integrated in the Included Configurations section */}
+              {/* Bottom action buttons container removed from here */}
             </div>
           </TabsContent>
           
           <TabsContent value="preview" className="pt-4">
             <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-              <div className="flex justify-center items-center h-80 bg-gray-50 rounded-xl border border-gray-200">
+              <h3 className="text-lg font-semibold mb-3">3D Preview</h3>
+              <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
                 <p className="text-gray-500">3D preview coming soon</p>
-              </div>
-              
-              <div className="mt-6 text-center">
-                <p className="text-gray-600 mb-4">
-                  Interactive 3D previews allow you to see the style from all angles before making your choice.
-                </p>
-                <p className="text-sm text-gray-500">
-                  This feature is currently in development and will be available soon.
-                </p>
               </div>
             </div>
           </TabsContent>
           
           <TabsContent value="reviews" className="pt-4">
             <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-              <div className="flex items-center mb-4">
-                <div className="flex">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <svg key={star} className="w-5 h-5 text-yellow-400 fill-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
+              <h3 className="text-lg font-semibold mb-3">Customer Reviews</h3>
+              
+              {/* Check if style.reviews exists and has items */}
+              {style.reviews && style.reviews.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Map through the API reviews */}
+                  {style.reviews.map((review) => (
+                    <div key={review.id} className="flex items-start">
+                      <div className="w-10 h-10 rounded-full bg-gray-200 mr-3 flex-shrink-0">
+                        {/* Use user photo if available, otherwise use empty div */}
+                        {review.userPhoto && (
+                          <img 
+                            src={review.userPhoto} 
+                            alt={review.userName} 
+                            className="w-10 h-10 rounded-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center">
+                          <h4 className="font-medium">{review.userName}</h4>
+                          <div className="flex items-center ml-2">
+                            {/* Render stars based on rating */}
+                            <span className="text-yellow-500">
+                              {Array(review.rating).fill('★').join('')}
+                              {Array(5 - review.rating).fill('★').length > 0 && (
+                                <span className="text-gray-300">
+                                  {Array(5 - review.rating).fill('★').join('')}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Format date to show relative time */}
+                        <p className="text-sm text-gray-500 mt-1">
+                          {new Date(review.date).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </p>
+                        <p className="mt-2 text-gray-600">{review.comment}</p>
+                      </div>
+                    </div>
                   ))}
                 </div>
-                <span className="text-lg font-medium ml-2">4.8</span>
-                <span className="text-gray-500 text-sm ml-2">(24 reviews)</span>
-              </div>
-              
-              <div className="space-y-4">
-                {[
-                  { name: "Priya S.", date: "2 weeks ago", comment: "Absolutely love this design! The embroidery work is exquisite and the fit is perfect." },
-                  { name: "Meera K.", date: "1 month ago", comment: "Beautiful craftsmanship and attention to detail. Received many compliments!" }
-                ].map((review, index) => (
-                  <div key={index} className="pb-4 border-b border-gray-100 last:border-0 last:pb-0">
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="font-medium">{review.name}</div>
-                      <div className="text-gray-500 text-sm">{review.date}</div>
-                    </div>
-                    <div className="flex mb-2">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <svg key={star} className="w-4 h-4 text-yellow-400 fill-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                        </svg>
-                      ))}
-                    </div>
-                    <p className="text-gray-600">{review.comment}</p>
-                  </div>
-                ))}
-              </div>
-              
-              <Button className="w-full mt-4" variant="outline">
-                View All Reviews
-              </Button>
+              ) : (
+                <div className="text-center py-6 text-gray-500">
+                  <p>No reviews available for this style yet.</p>
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
       </div>
-      
-      {/* Bottom Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10">
-        {!isCustomizing && (
-          <div className="flex gap-3">
-            <Button 
-              variant="outline" 
-              className="flex-1 border-plum text-plum hover:bg-plum/10"
-              onClick={toggleCustomization}
-            >
-              Customize This Style
-            </Button>
-            <Button 
-              className="flex-1 bg-plum hover:bg-plum/90"
-              onClick={handleSelectAsIs}
-            >
-              Select As Is
-            </Button>
-          </div>
-        )}
+
+      {/* Fixed bottom buttons */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 z-10 shadow-lg">
+        <div className="container mx-auto max-w-md flex flex-row gap-2">
+          <Button 
+            className="flex-1 bg-plum hover:bg-plum/90 py-3 text-sm h-auto"
+            onClick={handleSelectAsIs}
+          >
+            <CheckCircle2 className="w-4 h-4 mr-1" />
+            Select As-Is
+          </Button>
+          <Button 
+            variant="outline" 
+            className="flex-1 border-plum text-plum hover:bg-plum/5 py-3 text-sm h-auto"
+            onClick={toggleCustomization}
+          >
+            <Sparkles className="w-4 h-4 mr-1" />
+            {isCustomizing ? 'Cancel' : 'Customize'}
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,18 @@
+        // Extract neck types from available styles if not explicitly provided
+        // This would be better coming directly from the API
+        const neckTypesSet = new Set<string>();
+        response.styles.forEach(style => {
+          if (style.customizationCategories.includes('collar')) {
+            neckTypesSet.add('Round');
+            neckTypesSet.add('V-Shape');
+            neckTypesSet.add('Sweetheart');
+            neckTypesSet.add('Deep U');
+            neckTypesSet.add('Boat Neck');
+            neckTypesSet.add('Keyhole');
+          }
+        });
+        
+        if (neckTypesSet.size > 0) {
+          setNeckTypes(Array.from(neckTypesSet));
+        }
+      }

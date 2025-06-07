@@ -33,14 +33,22 @@ export interface Boutique {
   id: string;
   name: string;
   description: string;
-  address: BoutiqueAddress;
-  rating: number;
+  phoneNumber: string;
+  email: string;
+  imageUrls: string; // Direct URL to the boutique's primary image
+  coverImageUrl: string;
+  ratings: number; // Note: changed from rating to ratings
   reviewCount: number;
-  imageUrls: string[];
-  services: string[];
-  isOpen: boolean;
-  featured: boolean;
-  // For backward compatibility
+  isActive: boolean; // Note: changed from isOpen to isActive
+  verificationStatus: string;
+  createdAt: string;
+  updatedAt: string;
+  // For backward compatibility with existing code
+  rating?: number;
+  isOpen?: boolean;
+  address?: BoutiqueAddress;
+  services?: string[];
+  featured?: boolean;
   image?: string;
   location?: string;
 }
@@ -49,8 +57,14 @@ export interface Service {
   id: string;
   name: string;
   description: string;
-  image: string;
-  type: "blouse" | "lehenga";
+  category: string;
+  imageUrl: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  // For backward compatibility
+  image?: string;
+  type?: "blouse" | "lehenga";
 }
 
 export interface DesignOption {

@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Star, MapPin, Phone, ChevronLeft, Clock, CheckCircle2, Heart, Share2, MessageCircle, Scissors, ExternalLink, Palette, Shirt, PenTool, Sparkles, Brush, Ruler } from 'lucide-react';
-import { Boutique, Service } from '../utils/types';
+import { Star, MapPin, Phone, ChevronLeft, Clock, CheckCircle2, Heart, Share2, MessageCircle, Scissors, ExternalLink, Palette, Shirt, PenTool, Sparkles, Brush, Ruler, Loader, ArrowRight } from 'lucide-react';
+import { Service } from '../utils/types';
 import { useOrder } from '../utils/OrderContext';
 import { toast } from "@/components/ui/use-toast";
 import { DesignOptionsModal, StyleGalleryModal, UploadReferenceModal, StyleCustomizationModal } from '@/components/ServiceCustomization';
 import MaterialSelectionModal, { MaterialSelection } from '@/components/ServiceCustomization/MaterialSelectionModal';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import OptimizedImage from '@/components/ui/optimized-image';
+import { getServiceDetails, getPredesignedStyles, getMaterials, MaterialsResponse } from '../services/api';
 
 // Define extended types to match the API response
 export interface ApiService {
@@ -19,23 +23,73 @@ export interface ApiService {
   imageUrl: string;
 }
 
-interface ApiBoutique extends Omit<Boutique, 'services'> {
+interface ApiBoutique {
+  id: string;
+  name: string;
+  description: string;
   about?: string;
+  ratings: number; // Note: using ratings (not rating) to match our Boutique interface
+  reviewCount: number;
+  coverImageUrl: string;
+  phoneNumber?: string;
+  email?: string;
   specializations?: string[];
   services: ApiService[];
+  // For backward compatibility with existing code
+  imageUrls?: string[];
+  image?: string;
+  isOpen?: boolean;
+  featured?: boolean;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
 }
 
 // Define types for design options
+export interface Boutique {
+  id: string;
+  name: string;
+  description: string;
+  ratings: number;
+  reviewCount: number;
+  coverImageUrl: string;
+  phoneNumber?: string;
+  email?: string;
+}
+
 export interface PredesignedStyle {
   id: string;
   name: string;
+  description: string;
   imageUrl: string;
   price: number;
+  discount: number;
+  finalPrice: number;
+  estimatedDays: number;
+  isCustomizable: boolean;
+  thumbnail?: string;
+  imageUrls?: string[];
+  category?: string;
+  popularity?: number;
+  boutique?: Boutique;
+  presetSpecifications?: {
+    collarStyle?: string;
+    cuffStyle?: string;
+    embroidery?: string;
+    fabric?: string;
+    color?: string;
+    [key: string]: any;
+  };
   configurations: {
     frontNeck: string;
     backNeck: string;
     embroidery: string;
     blouseType: string;
+    color?: string;
+    buttons?: string;
   };
 }
 
@@ -74,6 +128,11 @@ const BoutiqueDetailPage: React.FC = () => {
   const [showMaterialDialog, setShowMaterialDialog] = useState(false);
   const [showPredesignedDialog, setShowPredesignedDialog] = useState(false);
   const [predesignedStyles, setPredesignedStyles] = useState<PredesignedStyle[]>([]);
+  const [showServiceDetailsSheet, setShowServiceDetailsSheet] = useState(false);
+  const [serviceDetailsLoading, setServiceDetailsLoading] = useState(false);
+  const [serviceDetails, setServiceDetails] = useState<any>(null);
+  const [materialsData, setMaterialsData] = useState<MaterialsResponse | null>(null);
+  const [materialsLoading, setMaterialsLoading] = useState(false);
 
   useEffect(() => {
     const fetchBoutiqueDetails = async () => {
@@ -116,15 +175,47 @@ const BoutiqueDetailPage: React.FC = () => {
     fetchBoutiqueDetails();
   }, [boutiqueId]);
 
-  const handleServiceSelect = (serviceId: string) => {
+  const handleServiceSelect = async (serviceId: string) => {
     if (boutique) {
       const service = boutique.services.find((s) => s.id === serviceId);
       if (service) {
         setSelectedService(service);
-        // Show material selection directly instead of options dialog
-        setShowMaterialDialog(true);
+        setMaterialsLoading(true);
+        
+        try {
+          // Fetch service details and materials data in parallel
+          const [serviceDetailsResponse, materialsResponse] = await Promise.all([
+            getServiceDetails(serviceId, boutiqueId),
+            getMaterials(serviceId, { boutiqueId })
+          ]);
+          
+          console.log('Service details API response:', serviceDetailsResponse);
+          console.log('Materials API response:', materialsResponse);
+          
+          setServiceDetails(serviceDetailsResponse);
+          setMaterialsData(materialsResponse);
+          
+          // Skip showing service details sheet and directly open material dialog
+          setShowMaterialDialog(true);
+        } catch (error) {
+          console.error('Error fetching service data:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load service data. Please try again.",
+            variant: "destructive"
+          });
+        } finally {
+          setServiceDetailsLoading(false);
+          setMaterialsLoading(false);
+        }
       }
     }
+  };
+  
+  // Function to proceed to service options
+  const handleProceedToServiceOptions = () => {
+    setShowServiceDetailsSheet(false);
+    setShowMaterialDialog(true);
   };
 
   // State for new popup-based flow modals
@@ -138,7 +229,7 @@ const BoutiqueDetailPage: React.FC = () => {
     materialSelection: MaterialSelection,
     option: 'predesigned' | 'custom'
   ) => {
-    setShowMaterialDialog(false);
+    console.log('Material and design selection handler called:', { materialSelection, option });
     
     if (selectedService && boutique) {
       // Convert the API service format to the app's Service type
@@ -163,7 +254,7 @@ const BoutiqueDetailPage: React.FC = () => {
         isOpen: boutique.isOpen,
         featured: boutique.featured,
         image: boutique.imageUrls[0],
-        location: `${boutique.address.city}, ${boutique.address.pincode}`
+        location: boutique.address && boutique.address.city ? `${boutique.address.city}, ${boutique.address.pincode || ''}` : 'Unknown location'
       };
       
       // Update order context with selection including material info
@@ -174,13 +265,24 @@ const BoutiqueDetailPage: React.FC = () => {
         materialSelection: materialSelection
       });
       
-      if (option === 'predesigned') {
-        // Navigate to predesigned styles page
-        navigate(`/boutique/${boutique.id}/service/${selectedService.id}/predesigned-styles`);
-      } else {
-        // Navigate to custom design page
-        navigate(`/boutique/${boutique.id}/service/${selectedService.id}/custom-design`);
-      }
+      // First close the modal
+      setShowMaterialDialog(false);
+      
+      // Then perform navigation based on user selection
+      console.log(`Navigating to ${option === 'predesigned' ? 'predesigned styles' : 'custom design'} page`);
+      
+      // Execute navigation with a small delay to ensure state updates complete
+      setTimeout(() => {
+        if (option === 'predesigned') {
+          navigate(`/boutique/${boutique.id}/service/${selectedService.id}/predesigned-styles`);
+        } else {
+          navigate(`/boutique/${boutique.id}/service/${selectedService.id}/custom-design`);
+        }
+      }, 100);
+    } else {
+      console.error('Missing service or boutique data for navigation');
+      // Close the modal even if there's an error
+      setShowMaterialDialog(false);
     }
   };
 
@@ -190,60 +292,63 @@ const BoutiqueDetailPage: React.FC = () => {
     
     try {
       setLoading(true);
-      // Mock data for now - would be replaced with actual API call
-      // The styles would be different based on the service type
-      const mockStyles: PredesignedStyle[] = [
-        {
-          id: "style1",
-          name: "Classic Embroidered",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse1.jpg?alt=media",
-          price: 1299,
-          configurations: {
-            frontNeck: "Round",
-            backNeck: "V-Shape",
-            embroidery: "Floral",
-            blouseType: "Princess Cut"
-          }
-        },
-        {
-          id: "style2",
-          name: "Modern Cut",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse2.jpg?alt=media",
-          price: 1499,
-          configurations: {
-            frontNeck: "Sweetheart",
-            backNeck: "Deep U",
-            embroidery: "Minimal",
-            blouseType: "Sleeveless"
-          }
-        },
-        {
-          id: "style3",
-          name: "Traditional Silk",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse3.jpg?alt=media",
-          price: 1699,
-          configurations: {
-            frontNeck: "Square",
-            backNeck: "Round",
-            embroidery: "Heavy Gold",
-            blouseType: "Full Sleeve"
-          }
-        },
-        {
-          id: "style4",
-          name: "Contemporary Chic",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse4.jpg?alt=media",
-          price: 1899,
-          configurations: {
-            frontNeck: "Boat Neck",
-            backNeck: "Keyhole",
-            embroidery: "Sequin",
-            blouseType: "Cap Sleeve"
-          }
-        }
-      ];
       
-      setPredesignedStyles(mockStyles);
+      // Fetch predesigned styles from API using selectedService.id
+      if (!selectedService || !selectedService.id) {
+        throw new Error('Service ID is required');
+      }
+      
+      const options = {
+        // Add any required filters
+      };
+      
+      // Call the API to get predesigned styles
+      const response = await getPredesignedStyles(selectedService.id, options);
+      
+      // Check for proper response structure based on the API format
+      if (!response.data || !response.data.styles) {
+        throw new Error('Invalid API response format');
+      }
+      
+      // Process the API response and map to PredesignedStyle format
+      const apiStyles = response.data.styles.map(style => {
+        // Parse the attributes if it's a string
+        let attributes: Record<string, string[]> = {};
+        try {
+          if (style.attributes && typeof style.attributes === 'string') {
+            attributes = JSON.parse(style.attributes);
+          }
+        } catch (e) {
+          console.warn('Failed to parse style attributes:', e);
+        }
+
+        // Get the image URL (it might be a string or an array)
+        const imageUrl = typeof style.imageUrls === 'string'
+          ? style.imageUrls
+          : (Array.isArray(style.imageUrls) && style.imageUrls.length > 0
+            ? style.imageUrls[0]
+            : '');
+        
+        // Use attributes to determine configurations
+        const necklineOptions = attributes?.neckline || [];
+        const backOptions = attributes?.back || [];
+        const sleeveOptions = attributes?.sleeve || [];
+
+        return {
+          id: style.id,
+          name: style.name,
+          imageUrl: imageUrl,
+          price: style.price,
+          configurations: {
+            frontNeck: necklineOptions[0] || '',
+            backNeck: backOptions[0] || '',
+            embroidery: '',
+            blouseType: sleeveOptions[0] || style.category || ''
+          }
+        };
+      });
+      
+      setPredesignedStyles(apiStyles);
       setShowPredesignedDialog(true);
     } catch (error) {
       console.error('Error fetching predesigned styles:', error);
@@ -283,7 +388,7 @@ const BoutiqueDetailPage: React.FC = () => {
         isOpen: boutique.isOpen,
         featured: boutique.featured,
         image: boutique.imageUrls[0],
-        location: `${boutique.address.city}, ${boutique.address.pincode}`
+        location: boutique.address && boutique.address.city ? `${boutique.address.city}, ${boutique.address.pincode || ''}` : 'Unknown location'
       };
       
       // Update order context with predesigned selection
@@ -344,7 +449,7 @@ const BoutiqueDetailPage: React.FC = () => {
         isOpen: boutique.isOpen,
         featured: boutique.featured,
         image: boutique.imageUrls[0],
-        location: `${boutique.address.city}, ${boutique.address.pincode}`
+        location: boutique.address && boutique.address.city ? `${boutique.address.city}, ${boutique.address.pincode || ''}` : 'Unknown location'
       };
       
       // Determine design type and update order context
@@ -407,13 +512,15 @@ const BoutiqueDetailPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="p-4">
-          <button 
-            onClick={() => navigate(-1)}
-            className="flex items-center text-gray-600 mb-4"
-          >
-            <ChevronLeft className="w-5 h-5 mr-1" />
-            <span>Back</span>
-          </button>
+          {!isDesktop && (
+            <button 
+              onClick={() => navigate(-1)}
+              className="flex items-center text-gray-600 mb-4"
+            >
+              <ChevronLeft className="w-5 h-5 mr-1" />
+              <span>Back</span>
+            </button>
+          )}
           <div className="text-center py-8">
             <p className="text-gray-500">{error || 'Boutique not found'}</p>
             <button 
@@ -433,38 +540,27 @@ const BoutiqueDetailPage: React.FC = () => {
       <div className="min-h-screen bg-gray-50">
         {/* Boutique Hero Image with Parallax Effect */}
       <div className="relative h-48 md:h-56 overflow-hidden">
-        <img
-          src={boutique.imageUrls?.[0] || boutique.image || '/images/placeholder-boutique.jpg'}
+        <OptimizedImage
+          src={boutique.coverImageUrl || boutique.imageUrls?.[0] || boutique.image || '/images/placeholder-boutique.jpg'}
           alt={boutique.name}
-          className="w-full h-full object-cover transform scale-105"
-          loading="eager" /* Hero image loads eagerly for better UX */
-          onError={(e) => {
-            e.currentTarget.src = '/images/placeholder-boutique.jpg';
-          }}
+          className="transform scale-105"
+          objectFit="cover"
+          fallbackSrc="/images/placeholder-boutique.jpg"
+          priority={true} /* Hero image loads with priority for better UX */
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
         
         {/* Boutique name and rating */}
         <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-          <div className="flex items-center justify-between">
+          <div>
             <h1 className="text-3xl font-bold">{boutique.name}</h1>
-            
-            {/* Share and like buttons moved here */}
-            <div className="flex items-center space-x-2">
-              <button className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors" aria-label="Share boutique">
-                <Share2 className="w-5 h-5 text-white" />
-              </button>
-              <button className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors" aria-label="Save to favorites">
-                <Heart className="w-5 h-5 text-white" />
-              </button>
-            </div>
           </div>
           
           <div className="flex items-center mt-2">
             <div className="flex items-center bg-white/20 px-2.5 py-1 rounded-full">
               <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
               <span className="ml-1 text-sm font-medium">
-                {boutique.rating}
+                {boutique.ratings || boutique.rating}
               </span>
             </div>
             <span className="ml-2 text-sm opacity-90">({boutique.reviewCount} reviews)</span>
@@ -490,14 +586,13 @@ const BoutiqueDetailPage: React.FC = () => {
                   onClick={() => handleServiceSelect(service.id)}
                 >
                   {/* Compact image display */}
-                  <img 
+                  <OptimizedImage 
                     src={service.imageUrl || '/images/placeholder-service.jpg'} 
                     alt={service.name}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    loading="lazy"
-                    onError={(e) => {
-                      e.currentTarget.src = '/images/placeholder-service.jpg';
-                    }}
+                    className="transition-transform duration-300 group-hover:scale-105"
+                    objectFit="cover"
+                    fallbackSrc="/images/placeholder-service.jpg"
+                    aspectRatio="aspect-auto"
                   />
                   
                   {/* Gradient overlay */}
@@ -513,13 +608,8 @@ const BoutiqueDetailPage: React.FC = () => {
                     </div>
                     
                     <div className="flex items-center justify-between mt-2">
-                      <div className="flex items-center text-[10px] text-white/90">
-                        <CheckCircle2 className="w-2.5 h-2.5 mr-1 text-green-300" />
-                        <span>7-10d</span>
-                      </div>
-                      
                       <div className="rounded-full bg-plum text-white text-[10px] px-2.5 py-0.5 font-medium flex items-center">
-                        Book Now <span className="ml-1">→</span>
+                        View Details <span className="ml-1">→</span>
                       </div>
                     </div>
                   </div>
@@ -538,103 +628,25 @@ const BoutiqueDetailPage: React.FC = () => {
               <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                 <div className="p-5">
                   <p className="text-gray-700 leading-relaxed">
-                    {boutique.about || boutique.description || `${boutique.name} is a premium tailoring boutique specializing in custom-made women's clothing. With expert craftsmanship and attention to detail, we create beautiful garments tailored to your measurements and style preferences.`}
+                    {boutique.about || boutique.description}
                   </p>
                   
-                  <div className="mt-4 space-y-2">
-                    <div className="flex items-center">
-                      <CheckCircle2 className="w-4 h-4 mr-2 text-plum" />
-                      <span className="text-sm text-gray-700">Premium Fabrics</span>
+                  {/* Only show specializations if they're coming from the API */}
+                  {boutique.specializations && boutique.specializations.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      {boutique.specializations.map((specialization, index) => (
+                        <div key={index} className="flex items-center">
+                          <CheckCircle2 className="w-4 h-4 mr-2 text-plum" />
+                          <span className="text-sm text-gray-700">{specialization}</span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex items-center">
-                      <CheckCircle2 className="w-4 h-4 mr-2 text-plum" />
-                      <span className="text-sm text-gray-700">Custom Designs</span>
-                    </div>
-                    <div className="flex items-center">
-                      <CheckCircle2 className="w-4 h-4 mr-2 text-plum" />
-                      <span className="text-sm text-gray-700">Expert Tailors</span>
-                    </div>
-                    <div className="flex items-center">
-                      <CheckCircle2 className="w-4 h-4 mr-2 text-plum" />
-                      <span className="text-sm text-gray-700">Alterations</span>
-                    </div>
-                  </div>
+                  )}
                   
                   <div className="mt-6 flex flex-wrap gap-2">
                     {boutique.specializations?.map((specialization, index) => (
                       <span key={index} className="bg-plum/10 text-plum text-xs px-3 py-1 rounded-full">{specialization}</span>
                     ))}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Location */}
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden mt-6">
-                <div className="p-5">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-4">Location</h4>
-                  
-                  <div className="flex items-start mb-4">
-                    <MapPin className="w-5 h-5 text-plum mr-3 mt-0.5" />
-                    <div>
-                      <p className="text-gray-700">
-                        {boutique.address ? (
-                          <>
-                            {boutique.address.line1}<br />
-                            {boutique.address.line2 && <>{boutique.address.line2}<br /></>}
-                            {boutique.address.city}, {boutique.address.state}<br />
-                            {boutique.address.pincode}
-                          </>
-                        ) : (
-                          boutique.location || 'Address not available'
-                        )}
-                      </p>
-                      <a 
-                        href={`https://maps.google.com/?q=${boutique.address?.line1},${boutique.address?.city},${boutique.address?.pincode}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-plum text-sm font-medium mt-1 inline-flex items-center"
-                      >
-                        Get Directions
-                        <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
-                    </div>
-                  </div>
-                  
-                  {/* Opening Hours */}
-                  <div className="flex items-start">
-                    <Clock className="w-5 h-5 text-plum mr-3 mt-0.5" />
-                    <div>
-                      <p className="text-gray-700">
-                        {boutique.isOpen ? (
-                          <span className="text-green-600 font-medium">Open now</span>
-                        ) : (
-                          <span className="text-red-500 font-medium">Closed now</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Contact Info */}
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden mt-6">
-                <div className="p-5">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-4">Contact</h4>
-                  
-                  <div className="flex items-start mb-4">
-                    <Phone className="w-5 h-5 text-plum mr-3 mt-0.5" />
-                    <div>
-                      <p className="text-gray-700">+91 98765 43210</p>
-                      <p className="text-gray-500 text-sm mt-0.5">Mon-Sat, 10am-8pm</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start">
-                    <MessageCircle className="w-5 h-5 text-plum mr-3 mt-0.5" />
-                    <div>
-                      <p className="text-gray-700">Chat with us</p>
-                      <p className="text-gray-500 text-sm mt-0.5">Usually responds within 30 mins</p>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -690,6 +702,8 @@ const BoutiqueDetailPage: React.FC = () => {
         isOpen={showMaterialDialog}
         onClose={() => setShowMaterialDialog(false)}
         service={selectedService}
+        materialsData={materialsData}
+        materialsLoading={materialsLoading}
         onContinue={handleMaterialAndDesignSelect}
       />
       
@@ -718,7 +732,148 @@ const BoutiqueDetailPage: React.FC = () => {
         uploadedImageUrl={uploadedImage || undefined}
         onComplete={handleCustomizationComplete}
       />
-  </>
+      
+      {/* Service Details Bottom Sheet */}
+      <Sheet open={showServiceDetailsSheet} onOpenChange={setShowServiceDetailsSheet}>
+        <SheetContent className="w-full sm:max-w-md p-0">
+          <div className="h-full flex flex-col">
+            {/* Header */}
+            <SheetHeader className="p-6 border-b">
+              <SheetTitle className="text-xl">{selectedService?.name || 'Service Details'}</SheetTitle>
+            </SheetHeader>
+            
+            {/* Content */}
+            <div className="flex-1 overflow-auto p-6">
+              {serviceDetailsLoading ? (
+                <div className="flex justify-center items-center h-40">
+                  <Loader className="w-8 h-8 animate-spin text-plum" />
+                </div>
+              ) : serviceDetails ? (
+                <div className="space-y-6">
+                  {/* Service Image */}
+                  <div className="bg-gray-100 rounded-lg overflow-hidden aspect-video">
+                    <OptimizedImage 
+                      src={selectedService?.imageUrl || '/images/placeholder-service.jpg'} 
+                      alt={selectedService?.name || 'Service'}
+                      objectFit="cover"
+                      fallbackSrc="/images/placeholder-service.jpg"
+                      aspectRatio="aspect-video"
+                    />
+                  </div>
+                  
+                  {/* Service Details */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">{serviceDetails.name}</h3>
+                    <p className="text-gray-600 mt-2">{serviceDetails.description}</p>
+                  </div>
+                  
+                  {/* Pricing Info */}
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">Pricing</h4>
+                    {boutiqueId && serviceDetails.boutiqueSpecific ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Price Range</span>
+                        <span className="font-semibold text-gray-900">{serviceDetails.boutiqueSpecific.priceRange}</span>
+                      </div>
+                    ) : (
+                      <div className="text-gray-600">
+                        Price depends on design complexity and material selection.
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Design Options */}
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">Design Options</h4>
+                    <div className="space-y-2">
+                      {serviceDetails.designOptions?.hasPredesigned && (
+                        <div className="flex items-center">
+                          <CheckCircle2 className="w-4 h-4 text-green-500 mr-2" />
+                          <span className="text-gray-600">Pre-designed styles available</span>
+                        </div>
+                      )}
+                      {serviceDetails.designOptions?.hasCustom && (
+                        <div className="flex items-center">
+                          <CheckCircle2 className="w-4 h-4 text-green-500 mr-2" />
+                          <span className="text-gray-600">Custom designs accepted</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Material Options */}
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">Material Options</h4>
+                    <div className="space-y-2">
+                      {serviceDetails.materialOptions?.sellsMaterial && (
+                        <div className="flex items-center">
+                          <CheckCircle2 className="w-4 h-4 text-green-500 mr-2" />
+                          <span className="text-gray-600">Boutique provides materials</span>
+                        </div>
+                      )}
+                      {serviceDetails.materialOptions?.acceptsCustomMaterial && (
+                        <div className="flex items-center">
+                          <CheckCircle2 className="w-4 h-4 text-green-500 mr-2" />
+                          <span className="text-gray-600">You can bring your own material</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Boutique-specific Information */}
+                  {boutiqueId && serviceDetails.boutiqueSpecific && (
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">Additional Information</h4>
+                      
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-600">Available Slots</span>
+                          <span className="font-semibold text-gray-900">{serviceDetails.boutiqueSpecific.availableSlots}</span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-600">Estimated Delivery</span>
+                          <span className="font-semibold text-gray-900">{serviceDetails.boutiqueSpecific.estimatedDeliveryDays}</span>
+                        </div>
+                        
+                        {serviceDetails.boutiqueSpecific.specialOffers?.length > 0 && (
+                          <div className="pt-2">
+                            <h5 className="text-sm font-medium text-gray-700 mb-2">Special Offers</h5>
+                            <ul className="space-y-1">
+                              {serviceDetails.boutiqueSpecific.specialOffers.map((offer: string, idx: number) => (
+                                <li key={idx} className="text-sm text-gray-600 flex items-start">
+                                  <span className="text-plum mr-2">•</span>
+                                  {offer}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  Service details could not be loaded.
+                </div>
+              )}
+            </div>
+            
+            {/* Footer with action button */}
+            <div className="border-t p-6">
+              <Button 
+                className="w-full bg-plum hover:bg-plum/90" 
+                onClick={handleProceedToServiceOptions}
+                disabled={serviceDetailsLoading}
+              >
+                Proceed to Customization <ArrowRight className="ml-2 w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 };
 

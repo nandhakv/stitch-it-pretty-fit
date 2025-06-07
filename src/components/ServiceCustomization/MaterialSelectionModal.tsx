@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { ApiService } from '@/pages/BoutiqueDetailPage';
 import FabricSelectionModal from './FabricSelectionModal';
+import { MaterialsResponse, Material } from '@/services/api';
 
 // Define fabric options
 const fabricOptions = [
@@ -66,13 +67,15 @@ const fabricOptions = [
 
 export interface MaterialSelection {
   buyFromUs: boolean;
-  fabricDetails: typeof fabricOptions[0] | null;
+  fabricDetails: Material | null;
 }
 
 interface MaterialSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   service: ApiService | null;
+  materialsData?: MaterialsResponse | null;
+  materialsLoading?: boolean;
   onContinue: (materialSelection: MaterialSelection, option: 'predesigned' | 'custom') => void;
 }
 
@@ -80,12 +83,14 @@ const MaterialSelectionModal: React.FC<MaterialSelectionModalProps> = ({
   isOpen,
   onClose,
   service,
+  materialsData,
+  materialsLoading = false,
   onContinue
 }) => {
   // All hooks must be called unconditionally at the top level
   // Initialize states with no default selection
   const [buyCloth, setBuyCloth] = useState<boolean | null>(null);
-  const [selectedFabric, setSelectedFabric] = useState<typeof fabricOptions[0] | null>(null);
+  const [selectedFabric, setSelectedFabric] = useState<Material | null>(null);
   const [selectedOption, setSelectedOption] = useState<'predesigned' | 'custom' | null>(null);
   const [showFabricModal, setShowFabricModal] = useState(false);
   
@@ -108,23 +113,30 @@ const MaterialSelectionModal: React.FC<MaterialSelectionModalProps> = ({
   if (!service) return null;
 
   const handleContinue = () => {
+    // Log to confirm the button is being clicked
+    console.log('Continue button clicked', { buyCloth, selectedOption });
+    
     if (buyCloth === null || !selectedOption) {
+      console.log('Missing selection, cannot continue');
       return;
     }
     
+    // Call onContinue directly with current values
     if (buyCloth === false) {
-      // If using own fabric, proceed directly
+      console.log('Using own fabric, proceeding to navigation');
+      // Call parent handler with selection info
       onContinue(
         { buyFromUs: false, fabricDetails: null },
         selectedOption
       );
     } else {
+      console.log('Buying fabric from boutique, showing fabric modal');
       // If buying fabric, show the fabric selection modal
       setShowFabricModal(true);
     }
   };
   
-  const handleFabricSelected = (fabric: typeof fabricOptions[0]) => {
+  const handleFabricSelected = (fabric: Material) => {
     setSelectedFabric(fabric);
     setShowFabricModal(false);
     
@@ -208,6 +220,10 @@ const MaterialSelectionModal: React.FC<MaterialSelectionModalProps> = ({
                 onClick={() => {
                   setBuyCloth(false);
                   setSelectedFabric(null);
+                  
+                  // Don't close the modal immediately
+                  // Just mark the selection and wait for the user to click Continue
+                  // This ensures the user can select a design type if they haven't already
                 }}
               >
                 No, I have my own fabric
@@ -322,6 +338,10 @@ const MaterialSelectionModal: React.FC<MaterialSelectionModalProps> = ({
                           onClick={() => {
                             setBuyCloth(false);
                             setSelectedFabric(null);
+                            
+                            // Don't close the modal immediately
+                            // Just mark the selection and wait for the user to click Continue
+                            // This ensures the user can select a design type if they haven't already
                           }}
                         >
                           No, I have my own fabric
@@ -379,6 +399,7 @@ const MaterialSelectionModal: React.FC<MaterialSelectionModalProps> = ({
           isOpen={showFabricModal}
           onClose={() => setShowFabricModal(false)}
           service={service}
+          materialsData={materialsData}
           designType={selectedOption}
           onComplete={handleFabricSelected}
         />

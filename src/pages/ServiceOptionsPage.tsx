@@ -1,8 +1,10 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, Sparkles, Palette, CheckCircle2 } from 'lucide-react';
 import { useOrder } from '../utils/OrderContext';
+import { getServiceDetails } from '../services/api';
+import { toast } from '@/components/ui/use-toast';
 
 // Design option images
 const designOptions = [
@@ -25,8 +27,63 @@ const designOptions = [
 const ServiceOptionsPage: React.FC = () => {
   const navigate = useNavigate();
   const { order, updateOrder } = useOrder();
-  
   const { boutiqueId, serviceId } = useParams<{ boutiqueId: string; serviceId: string }>();
+  
+  const [loading, setLoading] = useState(false);
+  const [serviceDetails, setServiceDetails] = useState<any>(null);
+  
+  // Fetch service details on component mount if serviceId is available
+  useEffect(() => {
+    const fetchServiceDetails = async () => {
+      if (!serviceId) return;
+      
+      setLoading(true);
+      try {
+        const response = await getServiceDetails(serviceId, boutiqueId);
+        setServiceDetails(response);
+        
+        // Update order context with service information
+        updateOrder({ 
+          service: {
+            id: response.id,
+            name: response.name,
+            description: response.description,
+            image: '', // No image in API response yet
+            type: 'blouse' // Default to 'blouse' type for now
+          }
+        });
+        
+        // If boutiqueId is provided, also update boutique information
+        if (boutiqueId && response.boutiqueSpecific) {
+          updateOrder({
+            boutique: {
+              id: response.boutiqueSpecific.id,
+              name: response.boutiqueSpecific.name,
+              description: '',
+              rating: response.boutiqueSpecific.rating,
+              reviewCount: response.boutiqueSpecific.reviewCount,
+              imageUrls: [],
+              services: [],
+              isOpen: true,
+              featured: false,
+              address: { line1: '', city: '', state: '', pincode: '' }
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching service details:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load service details. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchServiceDetails();
+  }, [serviceId, boutiqueId, updateOrder]);
   
   const handleOptionSelect = (type: "predesigned" | "custom") => {
     updateOrder({ designType: type });

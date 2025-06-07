@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Star } from 'lucide-react';
+import OptimizedImage from "@/components/ui/optimized-image";
 import { PredesignedStyle } from '@/pages/BoutiqueDetailPage';
 
 // Define the customization options that will be available for all services
@@ -153,15 +155,66 @@ const StyleCustomizationModal: React.FC<StyleCustomizationModalProps> = ({
             </div>
           )}
           
-          {/* Preview image for preselected style */}
+          {/* Enhanced style details section with description, pricing and boutique info */}
           {preselectedStyle && !uploadedImageUrl && (
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">Base Style:</p>
-              <img 
-                src={preselectedStyle.imageUrl} 
-                alt={preselectedStyle.name} 
-                className="w-full max-h-40 object-contain border rounded-lg"
-              />
+            <div className="mb-6 space-y-4">
+              {/* Style image and name */}
+              <div className="relative rounded-lg overflow-hidden">
+                <OptimizedImage 
+                  src={preselectedStyle.imageUrl} 
+                  alt={preselectedStyle.name} 
+                  className="w-full h-52 object-cover"
+                  fallbackSrc="/images/placeholder-style.jpg"
+                  aspectRatio="aspect-video"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                <h3 className="absolute bottom-2 left-3 text-lg font-semibold text-white">{preselectedStyle.name}</h3>
+              </div>
+              
+              {/* Description */}
+              <div className="px-1">
+                <p className="text-gray-700">{preselectedStyle.description}</p>
+              </div>
+              
+              {/* Pricing with strikethrough and discount */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500 line-through text-sm">₹{preselectedStyle.price}</span>
+                      <span className="px-1.5 py-0.5 bg-green-100 text-green-800 rounded-md text-xs font-medium">{preselectedStyle.discount}% off</span>
+                    </div>
+                    <span className="text-xl font-bold text-gray-900">₹{preselectedStyle.finalPrice}</span>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    <span>Est. delivery: {preselectedStyle.estimatedDays} days</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Boutique profile information */}
+              {preselectedStyle.boutique && (
+                <div className="flex items-center p-3 bg-white border rounded-lg">
+                  <div className="h-12 w-12 rounded-full overflow-hidden bg-gray-200 mr-3">
+                    <OptimizedImage 
+                      src={preselectedStyle.boutique.coverImageUrl || '/images/placeholder-boutique.jpg'} 
+                      alt={preselectedStyle.boutique.name} 
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-gray-900">{preselectedStyle.boutique.name}</h4>
+                    <div className="flex items-center mt-1">
+                      <div className="flex items-center">
+                        <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                        <span className="ml-1 text-sm font-medium text-gray-700">{preselectedStyle.boutique.ratings}</span>
+                      </div>
+                      <span className="mx-1 text-gray-400">•</span>
+                      <span className="text-sm text-gray-600">{preselectedStyle.boutique.reviewCount} reviews</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           

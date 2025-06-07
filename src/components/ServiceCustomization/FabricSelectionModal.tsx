@@ -10,8 +10,9 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { ApiService } from '@/pages/BoutiqueDetailPage';
+import { Material, MaterialsResponse } from '@/services/api';
 
-// Define fabric options - same as in MaterialSelectionModal
+// Define fabric options as fallback
 const fabricOptions = [
   { 
     id: "silk", 
@@ -67,18 +68,21 @@ export interface FabricSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   service: ApiService | null;
+  materialsData?: MaterialsResponse | null;
   designType: 'predesigned' | 'custom' | null;
-  onComplete: (fabric: typeof fabricOptions[0]) => void;
+  onComplete: (fabric: Material) => void;
 }
 
 const FabricSelectionModal: React.FC<FabricSelectionModalProps> = ({
   isOpen,
   onClose,
   service,
+  materialsData,
   designType,
   onComplete
 }) => {
-  const [selectedFabric, setSelectedFabric] = useState<typeof fabricOptions[0] | null>(null);
+  const [selectedFabric, setSelectedFabric] = useState<Material | null>(null);
+  const isMobile = useMediaQuery("(max-width: 640px)");
   
   // Reset selection when modal closes
   useEffect(() => {
@@ -89,9 +93,43 @@ const FabricSelectionModal: React.FC<FabricSelectionModalProps> = ({
 
   if (!service) return null;
 
+  // Create a Material object from fabric option for backward compatibility
+  const createMaterialFromFabric = (fabric: typeof fabricOptions[0]): Material => {
+    return {
+      id: fabric.id,
+      name: fabric.name,
+      description: `${fabric.material} in ${fabric.color}`,
+      images: [fabric.image],
+      thumbnail: fabric.image,
+      price: fabric.price,
+      pricePerUnit: 'per meter',
+      type: fabric.material,
+      colors: [{ name: fabric.color, code: '', image: fabric.image, inStock: true }],
+      availableQuantity: 100,
+      minimumOrder: 1,
+      properties: {
+        weight: 'medium',
+        stretch: 'low',
+        opacity: 'medium',
+        care: ['Dry clean only'],
+        composition: fabric.material
+      },
+      rating: 0,
+      reviewCount: 0
+    };
+  };
+  
   const handleContinue = () => {
     if (!selectedFabric) return;
+    
+    // Call onComplete with the selected fabric
+    // The parent component (BoutiqueDetailPage) will handle navigation
+    // to either the predesigned styles page or custom design page
+    // based on the designType selection
     onComplete(selectedFabric);
+    
+    // Close this modal
+    onClose();
   };
 
   const renderContent = () => (
@@ -102,147 +140,117 @@ const FabricSelectionModal: React.FC<FabricSelectionModalProps> = ({
           Choose the fabric you'd like to use for your {designType === 'predesigned' ? 'pre-designed' : 'custom'} {service.name}.
         </p>
         
-        <div className="mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {fabricOptions.map(fabric => (
-              <div key={fabric.id} className="relative">
-                <button
-                  className={`w-full flex flex-row sm:flex-col items-start sm:items-center rounded-md border-2 p-3 transition-colors ${
-                    selectedFabric?.id === fabric.id 
-                      ? 'border-plum bg-plum/5' 
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                  onClick={() => {
-                    setSelectedFabric(fabric);
-                    // Single handler to prevent state fluctuation
-                  }}
-                >
-                  <div className="h-16 w-16 sm:h-auto sm:w-full aspect-square flex-shrink-0 mb-0 sm:mb-2 mr-3 sm:mr-0 rounded-md overflow-hidden bg-gray-100">
-                    {fabric.image ? (
-                      <img src={fabric.image} alt={fabric.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                        <Sparkles className="w-6 h-6 text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 flex flex-col items-start sm:items-center text-left sm:text-center">
-                    <span className="text-sm font-medium">{fabric.name}</span>
-                    <span className="text-xs text-gray-500">{fabric.material}</span>
-                    <span className="text-xs text-gray-500">{fabric.color}</span>
-                    <span className="text-xs text-plum mt-1 font-medium">₹{fabric.price}</span>
-                  </div>
-                  
-                  {selectedFabric?.id === fabric.id && (
-                    <div className="absolute top-2 right-2 bg-plum rounded-full p-1">
-                      <CheckCircle2 className="w-4 h-4 text-white" />
-                    </div>
-                  )}
-                </button>
+        <div className="grid grid-cols-2 gap-4 mt-6">
+          {materialsData && materialsData.materials && materialsData.materials.length > 0 ? (
+            // Display materials from API
+            materialsData.materials.map((material) => (
+              <div 
+                key={material.id}
+                className={`border p-4 rounded-lg cursor-pointer transition-all ${
+                  selectedFabric?.id === material.id ? 'border-plum bg-plum/5' : 'border-gray-200 hover:border-plum/60'
+                }`}
+                onClick={() => setSelectedFabric(material)}
+              >
+                <div className="aspect-square rounded-lg overflow-hidden mb-3">
+                  <img 
+                    src={material.images && material.images.length > 0 ? material.images[0] : '/images/placeholder-fabric.jpg'} 
+                    alt={material.name} 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = '/images/placeholder-fabric.jpg';
+                    }}
+                  />
+                </div>
+                <h4 className="font-medium">{material.name}</h4>
+                <div className="flex justify-between mt-1">
+                  <span className="text-sm text-gray-500">{material.type || 'Fabric'}</span>
+                  <span className="text-sm font-medium">₹{material.price}</span>
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  {material.colors && material.colors.length > 0 ? (
+                    <>Colors: {material.colors.map(c => c.name || c.code).join(', ')}</>
+                  ) : 'Standard color'}
+                </div>
               </div>
-            ))}
-          </div>
+            ))
+          ) : (
+            // Fallback to hardcoded fabric options
+            fabricOptions.map((fabric) => (
+              <div 
+                key={fabric.id}
+                className={`border p-4 rounded-lg cursor-pointer transition-all ${
+                  selectedFabric?.id === fabric.id ? 'border-plum bg-plum/5' : 'border-gray-200 hover:border-plum/60'
+                }`}
+                onClick={() => {
+                  const materialFabric = createMaterialFromFabric(fabric);
+                  setSelectedFabric(materialFabric);
+                }}
+              >
+                <div className="aspect-square rounded-lg overflow-hidden mb-3">
+                  <img 
+                    src={fabric.image} 
+                    alt={fabric.name} 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = '/images/placeholder-fabric.jpg';
+                    }}
+                  />
+                </div>
+                <h4 className="font-medium">{fabric.name}</h4>
+                <div className="flex justify-between mt-1">
+                  <span className="text-sm text-gray-500">{fabric.material}</span>
+                  <span className="text-sm font-medium">₹{fabric.price}</span>
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  Color: {fabric.color}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
       
-      {/* Continue Button */}
-      <div className="flex flex-row gap-4 pt-2">
-        <Button 
-          variant="outline" 
-          className="flex-1 py-3 rounded-md border-gray-300 text-gray-700 hover:bg-gray-50"
-          onClick={onClose}
-        >
-          Back
+      <div className="mt-6 flex justify-end gap-3">
+        <Button variant="outline" onClick={onClose}>
+          Cancel
         </Button>
         <Button 
-          className={`flex-1 py-3 rounded-md ${
-            !selectedFabric
-              ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-              : 'bg-plum hover:bg-plum/90 text-white'
-          }`}
-          disabled={!selectedFabric}
+          disabled={!selectedFabric} 
           onClick={handleContinue}
+          className="bg-plum hover:bg-plum/90"
         >
           Continue
         </Button>
       </div>
     </>
   );
-
-  const isMobile = useMediaQuery("(max-width: 640px)");
   
-  if (isMobile) {
-    return (
-      <Sheet open={isOpen} onOpenChange={onClose}>
-        <SheetContent side="bottom" className="h-[90vh] p-0 flex flex-col">
-          <SheetHeader className="p-4 pb-0 flex-shrink-0">
-            <SheetTitle>{`Choose Fabric for ${service?.name}`}</SheetTitle>
-          </SheetHeader>
-          <div className="flex-1 overflow-auto px-4 pt-2 pb-24">
-            {renderContent()}
-          </div>
-          
-          {/* Fixed bottom buttons */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-10">
-            <div className="flex flex-row gap-4">
-              <Button 
-                variant="outline" 
-                className="flex-1 py-3 rounded-md border-gray-300 text-gray-700 hover:bg-gray-50"
-                onClick={onClose}
-                type="button"
-              >
-                Back
-              </Button>
-              <Button 
-                className={`flex-1 py-3 rounded-md ${
-                  !selectedFabric
-                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                    : 'bg-plum hover:bg-plum/90 text-white'
-                }`}
-                disabled={!selectedFabric}
-                onClick={handleContinue}
-                type="button"
-              >
-                Continue
-              </Button>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-    );
-  }
+  const ModalComponent = isMobile ? Sheet : Dialog;
+  const ContentComponent = isMobile ? SheetContent : DialogContent;
+  const HeaderComponent = isMobile ? SheetHeader : DialogHeader;
+  const TitleComponent = isMobile ? SheetTitle : DialogTitle;
   
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>{`Choose Fabric for ${service.name}`}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-6">
-          {renderContent()}
-          <div className="flex flex-row gap-4 pt-2">
+    <ModalComponent open={isOpen} onOpenChange={onClose}>
+      <ContentComponent className={isMobile ? "pt-10" : "max-w-2xl p-8"}>
+        <HeaderComponent className={isMobile ? "" : "pb-4"}>
+          <TitleComponent className="text-xl font-semibold">
+            Material Selection
+          </TitleComponent>
+          {isMobile && (
             <Button 
-              variant="outline" 
-              className="flex-1 py-3 rounded-md border-gray-300 text-gray-700 hover:bg-gray-50"
+              size="icon" 
+              variant="ghost" 
+              className="absolute right-4 top-4 p-0 h-8 w-8" 
               onClick={onClose}
             >
-              Back
+              <X className="h-5 w-5" />
             </Button>
-            <Button 
-              className={`flex-1 py-3 rounded-md ${
-                !selectedFabric
-                  ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                  : 'bg-plum hover:bg-plum/90 text-white'
-              }`}
-              disabled={!selectedFabric}
-              onClick={handleContinue}
-            >
-              Continue
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+          )}
+        </HeaderComponent>
+        {renderContent()}
+      </ContentComponent>
+    </ModalComponent>
   );
 };
 

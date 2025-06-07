@@ -203,32 +203,32 @@ const AddressPage: React.FC = () => {
                   </div>
                   
                   <div className="mb-3">
-                    <label className="form-label">Address Line 2 (Optional)</label>
+                    <label className="form-label">Landmark (Optional)</label>
                     <input
-                      {...register('addressLine2')}
+                      {...register('landmark')}
                       className="input-field"
-                      placeholder="Landmark, Area"
+                      placeholder="Nearby landmark"
                     />
                   </div>
                   
                   <div className="flex mb-3 gap-3">
                     <div className="flex-1">
-                      <label className="form-label">City</label>
+                      <label className="form-label">Area</label>
                       <input
-                        {...register('city')}
-                        className={`input-field ${errors.city ? 'border-red-500' : ''}`}
-                        placeholder="City"
+                        {...register('area')}
+                        className={`input-field ${errors.area ? 'border-red-500' : ''}`}
+                        placeholder="Area"
                       />
-                      {errors.city && <p className="error-text">{errors.city.message}</p>}
+                      {errors.area && <p className="error-text">{errors.area.message}</p>}
                     </div>
                     <div className="flex-1">
-                      <label className="form-label">State</label>
+                      <label className="form-label">Door No</label>
                       <input
-                        {...register('state')}
-                        className={`input-field ${errors.state ? 'border-red-500' : ''}`}
-                        placeholder="State"
+                        {...register('doorNo')}
+                        className={`input-field ${errors.doorNo ? 'border-red-500' : ''}`}
+                        placeholder="Door/Flat No"
                       />
-                      {errors.state && <p className="error-text">{errors.state.message}</p>}
+                      {errors.doorNo && <p className="error-text">{errors.doorNo.message}</p>}
                     </div>
                   </div>
                   

@@ -21,7 +21,7 @@ const BoutiqueCard: React.FC<BoutiqueCardProps> = ({ boutique }) => {
       onClick={handleClick}
     >
       <img 
-        src={boutique.imageUrls?.[0] || boutique.image || '/images/placeholder-boutique.jpg'} 
+        src={boutique.imageUrls?.[0] || boutique.imageUrls || boutique.image || '/images/placeholder-boutique.jpg'} 
         alt={boutique.name}
         className="w-full h-28 sm:h-32 object-cover"
         onError={(e) => {

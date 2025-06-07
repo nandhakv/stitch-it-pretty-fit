@@ -1,385 +1,148 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Info, CheckCircle2, Sparkles, Palette, ArrowRight, Heart, ChevronDown, ChevronUp, Shirt, SlidersHorizontal, X, FilterX, ArrowUpDown, Filter } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Heart } from 'lucide-react';
+import ImageWithFallback from '../components/ImageWithFallback';
 import { useOrder } from '../utils/OrderContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/components/ui/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { PredesignedStyle } from './BoutiqueDetailPage';
-import { MaterialSelection } from '@/utils/types';
+import { PredesignedStyle as ApiPredesignedStyle } from './BoutiqueDetailPage';
 
-// Define fabric options
-const fabricOptions = [
-  { 
-    id: "silk", 
-    name: "Pure Silk", 
-    color: "Off-white",
-    material: "100% Pure Silk",
-    price: 2500, 
-    image: "/images/fabrics/silk.jpg" 
-  },
-  { 
-    id: "cotton", 
-    name: "Cotton", 
-    color: "White",
-    material: "100% Organic Cotton",
-    price: 1000, 
-    image: "/images/fabrics/cotton.jpg" 
-  },
-  { 
-    id: "georgette", 
-    name: "Georgette", 
-    color: "Cream",
-    material: "Polyester Georgette",
-    price: 1500, 
-    image: "/images/fabrics/georgette.jpg" 
-  },
-  { 
-    id: "chiffon", 
-    name: "Chiffon", 
-    color: "Light Beige",
-    material: "Polyester Chiffon",
-    price: 1200, 
-    image: "/images/fabrics/chiffon.jpg" 
-  },
-  { 
-    id: "crepe", 
-    name: "Crepe", 
-    color: "Ivory",
-    material: "Polyester Crepe",
-    price: 1800, 
-    image: "/images/fabrics/crepe.jpg" 
-  },
-  { 
-    id: "satin", 
-    name: "Satin", 
-    color: "Pearl White",
-    material: "Polyester Satin",
-    price: 1600, 
-    image: "/images/fabrics/satin.jpg" 
-  }
-];
-
-// Fabric selection bottom sheet component
-const FabricSelectionSheet: React.FC<{
-  isOpen: boolean;
-  onClose: () => void;
-  fabrics: typeof fabricOptions;
-  selectedFabric: typeof fabricOptions[0] | null;
-  onSelectFabric: (fabric: typeof fabricOptions[0]) => void;
-  onSave: () => void;
-}> = ({ isOpen, onClose, fabrics, selectedFabric, onSelectFabric, onSave }) => {
-  return (
-    <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent side="bottom" className="h-[90vh] p-0 flex flex-col">
-        <SheetHeader className="p-4 pb-0 flex-shrink-0">
-          <SheetTitle>Select Your Fabric</SheetTitle>
-        </SheetHeader>
-        <div className="flex-1 overflow-auto px-4 pt-2 pb-24">
-          <p className="text-sm text-gray-600 mb-4">
-            Choose the fabric you'd like to use for your design.
-          </p>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-            {fabrics.map(fabric => (
-              <div key={fabric.id} className="relative">
-                <button
-                  className={`w-full flex flex-row sm:flex-col items-start sm:items-center rounded-md border-2 p-3 transition-colors ${
-                    selectedFabric?.id === fabric.id 
-                      ? 'border-plum bg-plum/5' 
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                  onClick={() => onSelectFabric(fabric)}
-                  type="button"
-                >
-                  <div className="h-16 w-16 sm:h-auto sm:w-full aspect-square flex-shrink-0 mb-0 sm:mb-2 mr-3 sm:mr-0 rounded-md overflow-hidden bg-gray-100">
-                    {fabric.image ? (
-                      <img src={fabric.image} alt={fabric.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                        <Sparkles className="w-6 h-6 text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 flex flex-col items-start sm:items-center text-left sm:text-center">
-                    <span className="text-sm font-medium">{fabric.name}</span>
-                    <span className="text-xs text-gray-500">{fabric.material}</span>
-                    <span className="text-xs text-gray-500">{fabric.color}</span>
-                    <span className="text-xs text-plum mt-1 font-medium">₹{fabric.price}</span>
-                  </div>
-                  
-                  {selectedFabric?.id === fabric.id && (
-                    <div className="absolute top-2 right-2 bg-plum rounded-full p-1">
-                      <CheckCircle2 className="w-4 h-4 text-white" />
-                    </div>
-                  )}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        {/* Fixed bottom buttons */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-10">
-          <div className="flex flex-row gap-4">
-            <Button 
-              variant="outline" 
-              className="flex-1 py-3 rounded-md border-gray-300 text-gray-700 hover:bg-gray-50"
-              onClick={onClose}
-              type="button"
-            >
-              Back
-            </Button>
-            <Button 
-              className={`flex-1 py-3 rounded-md ${
-                !selectedFabric
-                  ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                  : 'bg-plum hover:bg-plum/90 text-white'
-              }`}
-              disabled={!selectedFabric}
-              onClick={onSave}
-              type="button"
-            >
-              Confirm Selection
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-};
-
-// Helper function to get sort label
-const getSortLabel = (sort: 'price-asc' | 'price-desc' | 'popularity' | 'newest') => {
-  switch (sort) {
-    case 'price-asc': return 'Price: Low to High';
-    case 'price-desc': return 'Price: High to Low';
-    case 'newest': return 'Newest';
-    case 'popularity': return 'Popularity';
-  }
-};
+// Define a local interface for our component's use that doesn't extend ApiPredesignedStyle
+interface StyleItem {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl: string; // For display in our component
+  price: number;
+  discount?: number;
+  estimatedDays?: number;
+  isCustomizable?: boolean;
+  configurations: {
+    frontNeck: string;
+    backNeck: string;
+    embroidery: string;
+    blouseType: string;
+  };
+}
+// Import API services from the consolidated API file
+import { getPredesignedStyles } from '../services/api';
 
 const PredesignedStylesPage: React.FC = () => {
   const navigate = useNavigate();
   const { boutiqueId, serviceId } = useParams();
   const { order, updateOrder } = useOrder();
-  const [styles, setStyles] = useState<PredesignedStyle[]>([]);
+  
+  // States
+  const [styles, setStyles] = useState<StyleItem[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Material selection states
-  const [showMaterialSection, setShowMaterialSection] = useState(false);
-  const [buyCloth, setBuyCloth] = useState<boolean | null>(null);
-  const [selectedFabric, setSelectedFabric] = useState<typeof fabricOptions[0] | null>(null);
-  const [showMaterialSheet, setShowMaterialSheet] = useState(false);
-  
-  // Filter states
-  const [showFilters, setShowFilters] = useState(false);
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 3000]);
-  const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
-  const [selectedNeckTypes, setSelectedNeckTypes] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState<'price-asc' | 'price-desc' | 'popularity' | 'newest'>('popularity');
-  
-  // Available filter options
-  const styleTypes = ['Princess Cut', 'Sleeveless', 'Full Sleeve', 'Cap Sleeve', 'Elbow Length', 'Short Sleeve'];
-  const neckTypes = ['Round', 'V-Shape', 'Sweetheart', 'Deep U', 'Boat Neck', 'Keyhole', 'U-Shape'];
-  
-  // Check if material was already selected
-  useEffect(() => {
-    if (order.materialSelection) {
-      setBuyCloth(order.materialSelection.buyFromUs);
-      setSelectedFabric(order.materialSelection.fabricDetails as typeof fabricOptions[0] | null);
-    }
-  }, [order.materialSelection]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch predesigned styles
     fetchStyles();
   }, [serviceId]);
-
-  // Apply filters to styles
-  const getFilteredStyles = () => {
-    return styles.filter(style => {
-      // Price filter
-      if (style.price < priceRange[0] || style.price > priceRange[1]) {
-        return false;
-      }
-      
-      // Style type filter
-      if (selectedStyles.length > 0 && !selectedStyles.includes(style.configurations.blouseType)) {
-        return false;
-      }
-      
-      // Neck type filter
-      if (selectedNeckTypes.length > 0 && 
-         !(selectedNeckTypes.includes(style.configurations.frontNeck) || 
-           selectedNeckTypes.includes(style.configurations.backNeck))) {
-        return false;
-      }
-      
-      return true;
-    }).sort((a, b) => {
-      switch (sortBy) {
-        case 'price-asc':
-          return a.price - b.price;
-        case 'price-desc':
-          return b.price - a.price;
-        case 'newest':
-          // In a real app, you would sort by date added
-          return b.id.localeCompare(a.id);
-        case 'popularity':
-        default:
-          // In a real app, you would sort by popularity metric
-          return 0;
-      }
-    });
-  };
   
+  // Fetch styles from API
   const fetchStyles = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // Mock data for now - would be replaced with actual API call
-      const mockStyles: PredesignedStyle[] = [
-        {
-          id: "style1",
-          name: "Classic Embroidered",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse1.jpg?alt=media",
-          price: 1299,
-          configurations: {
-            frontNeck: "Round",
-            backNeck: "V-Shape",
-            embroidery: "Floral",
-            blouseType: "Princess Cut"
-          }
-        },
-        {
-          id: "style2",
-          name: "Modern Cut",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse2.jpg?alt=media",
-          price: 1499,
-          configurations: {
-            frontNeck: "Sweetheart",
-            backNeck: "Deep U",
-            embroidery: "Minimal",
-            blouseType: "Sleeveless"
-          }
-        },
-        {
-          id: "style3",
-          name: "Traditional Silk",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse3.jpg?alt=media",
-          price: 1699,
-          configurations: {
-            frontNeck: "Boat Neck",
-            backNeck: "Deep U",
-            embroidery: "Heavy",
-            blouseType: "Full Sleeve"
-          }
-        },
-        {
-          id: "style4",
-          name: "Contemporary",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse4.jpg?alt=media",
-          price: 1899,
-          configurations: {
-            frontNeck: "Boat Neck",
-            backNeck: "Keyhole",
-            embroidery: "Sequin",
-            blouseType: "Cap Sleeve"
-          }
-        },
-        {
-          id: "style5",
-          name: "Minimalist Design",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse5.jpg?alt=media",
-          price: 1199,
-          configurations: {
-            frontNeck: "Boat Neck",
-            backNeck: "Round",
-            embroidery: "None",
-            blouseType: "Short Sleeve"
-          }
-        },
-        {
-          id: "style6",
-          name: "Ethnic Patterns",
-          imageUrl: "https://firebasestorage.googleapis.com/v0/b/stitch-it-pretty-fit.appspot.com/o/services%2Fblouse6.jpg?alt=media",
-          price: 1799,
-          configurations: {
-            frontNeck: "Round",
-            backNeck: "U-Shape",
-            embroidery: "Traditional",
-            blouseType: "Elbow Length"
-          }
-        }
-      ];
+      // Use the API service to fetch styles
+      if (!serviceId) {
+        throw new Error('Service ID is required');
+      }
       
-      setStyles(mockStyles);
+      const options: any = {
+        // Set default pagination params
+        page: 1,
+        limit: 20
+      };
+      
+      // If we're in boutique-first flow, include boutiqueId
+      if (boutiqueId) {
+        options.boutiqueId = boutiqueId;
+      }
+      
+      // Call the API to get predesigned styles
+      const response = await getPredesignedStyles(serviceId, options);
+      
+      // Check for proper response structure based on the API format
+      if (!response.data || !response.data.styles) {
+        throw new Error('Invalid API response format');
+      }
+      
+      // Convert API response to PredesignedStyle format for compatibility
+      const apiStyles: StyleItem[] = response.data.styles.map(style => {
+        // Parse the attributes if it's a string
+        let attributes: Record<string, string[]> = {};
+        try {
+          if (style.attributes && typeof style.attributes === 'string') {
+            attributes = JSON.parse(style.attributes);
+          }
+        } catch (e) {
+          console.warn('Failed to parse style attributes:', e);
+        }
+        
+        // Get the image URL (it might be a string or an array)
+        const imageUrl = typeof style.imageUrls === 'string' 
+          ? style.imageUrls 
+          : (Array.isArray(style.imageUrls) && style.imageUrls.length > 0 
+              ? style.imageUrls[0] 
+              : '/images/placeholder-design.jpg');
+              
+        // Use attributes to determine configurations if available
+        const necklineOptions = attributes?.neckline || [];
+        const backOptions = attributes?.back || [];
+        const sleeveOptions = attributes?.sleeve || [];
+        
+        return {
+          ...style,
+          // Add compatibility fields for our app's usage
+          imageUrl: imageUrl, // Add imageUrl property needed by StyleItem interface
+          thumbnail: imageUrl,
+          configurations: {
+            frontNeck: necklineOptions[0] || '',
+            backNeck: backOptions[0] || '',
+            embroidery: '',
+            blouseType: sleeveOptions[0] || ''
+          }
+        };
+      });
+      
+      setStyles(apiStyles);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching styles:', error);
+      setLoading(false);
+      setError(error instanceof Error ? error.message : 'Failed to load predesigned styles');
+      
+      // Show error toast
       toast({
         title: "Error",
-        description: "Failed to load predesigned styles",
+        description: error instanceof Error ? error.message : 'Failed to load predesigned styles',
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
+      
+      // Set empty styles array - don't use fallback data
+      setStyles([]);
     }
   };
-
-  const handleStyleSelect = (style: PredesignedStyle) => {
-    // Navigate to the style details page with the style data in location state
-    navigate(`/boutique/${boutiqueId}/service/${serviceId}/predesigned-styles/${style.id}`, {
-      state: { style }
-    });
-  };
-
-  // These methods are handled in the detail page, not here
   
-  // Handle material selection being saved
-  const handleMaterialSave = () => {
-    if (buyCloth === null) {
-      toast({
-        title: "Incomplete selection",
-        description: "Please select whether you want to buy fabric from us or use your own",
-        variant: "destructive"
-      });
-      return;
+  // Handle navigation to style details
+  const handleStyleClick = (style: StyleItem) => {
+    if (boutiqueId && serviceId) {
+      // If boutique and service IDs are available, use them in the route
+      navigate(`/boutique/${boutiqueId}/service/${serviceId}/predesigned-styles/${style.id}`);
+    } else if (serviceId) {
+      // If only service ID is available
+      navigate(`/service/${serviceId}/style/${style.id}`);
+    } else {
+      // Standalone route
+      navigate(`/predesigned-styles/${style.id}`);
     }
-    
-    if (buyCloth && !selectedFabric) {
-      toast({
-        title: "Incomplete selection",
-        description: "Please select a fabric option",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Update order context with material selection
-    updateOrder({
-      ...order,
-      materialSelection: {
-        buyFromUs: buyCloth,
-        fabricDetails: selectedFabric
-      }
-    });
-    
-    // Close the material section
-    setShowMaterialSheet(false);
-    
-    toast({
-      title: "Material selected",
-      description: buyCloth 
-        ? `You've selected ${selectedFabric?.name}` 
-        : "You'll use your own fabric",
-      variant: "default"
-    });
   };
 
+  // Component rendering logic
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -390,16 +153,6 @@ const PredesignedStylesPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pt-[2rem] md:pt-[3.8rem] pb-20">
-      {/* Fabric Selection Sheet */}
-      <FabricSelectionSheet
-        isOpen={showMaterialSheet}
-        onClose={() => setShowMaterialSheet(false)}
-        fabrics={fabricOptions}
-        selectedFabric={selectedFabric}
-        onSelectFabric={setSelectedFabric}
-        onSave={handleMaterialSave}
-      />
-      
       {/* Top Navigation Bar */}
       <div className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 z-10 flex items-center px-4">
         <button 
@@ -409,327 +162,99 @@ const PredesignedStylesPage: React.FC = () => {
         >
           <ArrowLeft className="w-5 h-5 text-gray-700" />
         </button>
-        <h1 className="text-lg font-semibold text-gray-900 flex-1">Browse Predesigned Styles</h1>
+        <h1 className="text-lg font-semibold text-gray-900 flex-1">Predesigned Styles</h1>
       </div>
       
       <div className="px-4 pt-2 pb-16">
-        {/* Material Selection Section */}
-        <div className="mb-4 bg-white rounded-xl border border-plum/20 overflow-hidden shadow-sm">
-          <button 
-            className="w-full flex items-center justify-between p-4 hover:bg-plum/5 transition-colors"
-            onClick={() => setShowMaterialSection(!showMaterialSection)}
-          >
-            <div className="flex items-center">
-              <div className="w-9 h-9 rounded-full bg-plum/10 flex items-center justify-center mr-3">
-                <Shirt className="h-5 w-5 text-plum" />
-              </div>
-              <div>
-                <span className="font-medium block">Material Selection</span>
-                <span className="text-sm text-gray-500 block">
-                  {order.materialSelection 
-                    ? (order.materialSelection.buyFromUs 
-                        ? `${order.materialSelection.fabricDetails?.name} (₹${order.materialSelection.fabricDetails?.price})` 
-                        : "Using own fabric")
-                    : "Select material for your design"}
-                </span>
-              </div>
-            </div>
-            <div className="bg-plum/10 rounded-full p-2">
-              {showMaterialSection ? (
-                <ChevronUp className="h-4 w-4 text-plum" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-plum" />
-              )}
-            </div>
-          </button>
-          
-          {showMaterialSection && (
-            <div className="p-4 pt-0 border-t border-gray-100">
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-4">
-                  Choose whether you want to purchase fabric from us or use your own material.
-                </p>
-                
-                <div className="flex flex-col sm:flex-row gap-3 mb-4">
-                  <Button 
-                    variant={buyCloth === true ? "default" : "outline"} 
-                    className={`py-3 rounded-md ${buyCloth === true ? 'bg-plum text-white' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-                    onClick={() => {
-                      setBuyCloth(true);
-                      setShowMaterialSheet(true);
-                    }}
-                  >
-                    Yes, buy fabric from us
-                  </Button>
-                  <Button 
-                    variant={buyCloth === false ? "default" : "outline"} 
-                    className={`py-3 rounded-md ${buyCloth === false ? 'bg-plum text-white' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-                    onClick={() => {
-                      setBuyCloth(false);
-                      setSelectedFabric(null);
-                      handleMaterialSave();
-                    }}
-                  >
-                    No, I have my own fabric
-                  </Button>
-                </div>
-                
-                {/* Show selected fabric details if any */}
-                {buyCloth && selectedFabric && (
-                  <div className="flex items-center p-3 bg-plum/5 rounded-md border border-plum/20">
-                    <div className="h-12 w-12 rounded-md overflow-hidden mr-3">
-                      <img src={selectedFabric.image} alt={selectedFabric.name} className="h-full w-full object-cover" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-800">{selectedFabric.name}</p>
-                      <p className="text-sm text-gray-500">{selectedFabric.material}, {selectedFabric.color}</p>
-                      <p className="text-sm text-plum">₹{selectedFabric.price}</p>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="ml-auto"
-                      onClick={() => setShowMaterialSheet(true)}
-                    >
-                      Change
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-        
-        {/* Filter Section */}
-        <div className="mb-4 bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-          <button 
-            className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <div className="flex items-center">
-              <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center mr-3">
-                <Filter className="h-5 w-5 text-gray-700" />
-              </div>
-              <div>
-                <span className="font-medium block">Filters & Sorting</span>
-                <span className="text-sm text-gray-500 block">
-                  {selectedStyles.length > 0 || selectedNeckTypes.length > 0 || sortBy !== 'popularity' 
-                    ? `${selectedStyles.length + selectedNeckTypes.length} filters applied · ${getSortLabel(sortBy)}` 
-                    : "Filter by price, style, and more"}
-                </span>
-              </div>
-            </div>
-            <div className="bg-gray-100 rounded-full p-2">
-              {showFilters ? (
-                <ChevronUp className="h-4 w-4 text-gray-700" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-gray-700" />
-              )}
-            </div>
-          </button>
-          
-          {showFilters && (
-            <div className="p-4 pt-0 border-t border-gray-100">
-              {/* Price Range */}
-              <div className="mb-4">
-                <h3 className="text-sm font-medium mb-2">Price Range</h3>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs text-gray-500">₹{priceRange[0]}</span>
-                  <span className="text-xs text-gray-500">₹{priceRange[1]}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="3000"
-                  step="100"
-                  value={priceRange[1]}
-                  onChange={(e) => setPriceRange([priceRange[0], parseInt(e.target.value)])}
-                  className="w-full accent-plum"
-                />
-              </div>
-              
-              {/* Style Types */}
-              <div className="mb-4">
-                <h3 className="text-sm font-medium mb-2">Style Type</h3>
-                <div className="flex flex-wrap gap-2">
-                  {styleTypes.map(style => (
-                    <button
-                      key={style}
-                      className={`text-xs px-3 py-1.5 rounded-full transition-colors ${selectedStyles.includes(style) 
-                        ? 'bg-plum text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                      onClick={() => {
-                        if (selectedStyles.includes(style)) {
-                          setSelectedStyles(selectedStyles.filter(s => s !== style));
-                        } else {
-                          setSelectedStyles([...selectedStyles, style]);
-                        }
-                      }}
-                    >
-                      {style}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Neck Types */}
-              <div className="mb-4">
-                <h3 className="text-sm font-medium mb-2">Neck Design</h3>
-                <div className="flex flex-wrap gap-2">
-                  {neckTypes.map(neck => (
-                    <button
-                      key={neck}
-                      className={`text-xs px-3 py-1.5 rounded-full transition-colors ${selectedNeckTypes.includes(neck) 
-                        ? 'bg-plum text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                      onClick={() => {
-                        if (selectedNeckTypes.includes(neck)) {
-                          setSelectedNeckTypes(selectedNeckTypes.filter(n => n !== neck));
-                        } else {
-                          setSelectedNeckTypes([...selectedNeckTypes, neck]);
-                        }
-                      }}
-                    >
-                      {neck}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Sort Options */}
-              <div className="mb-3">
-                <h3 className="text-sm font-medium mb-2">Sort By</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    className={`text-xs px-3 py-2 rounded-md transition-colors flex items-center justify-center gap-1 ${sortBy === 'popularity' 
-                      ? 'bg-plum text-white' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                    onClick={() => setSortBy('popularity')}
-                  >
-                    <Sparkles className="w-3 h-3" /> Popularity
-                  </button>
-                  <button
-                    className={`text-xs px-3 py-2 rounded-md transition-colors flex items-center justify-center gap-1 ${sortBy === 'newest' 
-                      ? 'bg-plum text-white' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                    onClick={() => setSortBy('newest')}
-                  >
-                    <ArrowUpDown className="w-3 h-3" /> Newest
-                  </button>
-                  <button
-                    className={`text-xs px-3 py-2 rounded-md transition-colors flex items-center justify-center gap-1 ${sortBy === 'price-asc' 
-                      ? 'bg-plum text-white' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                    onClick={() => setSortBy('price-asc')}
-                  >
-                    <ArrowUpDown className="w-3 h-3" /> Price: Low to High
-                  </button>
-                  <button
-                    className={`text-xs px-3 py-2 rounded-md transition-colors flex items-center justify-center gap-1 ${sortBy === 'price-desc' 
-                      ? 'bg-plum text-white' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                    onClick={() => setSortBy('price-desc')}
-                  >
-                    <ArrowUpDown className="w-3 h-3" /> Price: High to Low
-                  </button>
-                </div>
-              </div>
-              
-              {/* Reset Filters */}
-              {(selectedStyles.length > 0 || selectedNeckTypes.length > 0 || sortBy !== 'popularity' || priceRange[0] !== 0 || priceRange[1] !== 3000) && (
-                <button
-                  className="text-xs mt-2 text-plum flex items-center gap-1"
-                  onClick={() => {
-                    setSelectedStyles([]);
-                    setSelectedNeckTypes([]);
-                    setSortBy('popularity');
-                    setPriceRange([0, 3000]);
-                  }}
-                >
-                  <FilterX className="w-3 h-3" /> Reset all filters
-                </button>
-              )}
-            </div>
-          )}
+        {/* Display count of styles */}
+        <div className="flex justify-end items-center mb-4">
+          <div className="text-xs text-gray-500">
+            {styles.length} style{styles.length !== 1 ? 's' : ''} found
+          </div>
         </div>
         
         {/* Welcome Banner */}
         <div className="mb-4 bg-gradient-to-r from-plum/10 to-plum/5 rounded-xl p-4 border border-plum/10">
           <div className="flex">
             <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">Predesigned Styles</h2>
-              <p className="text-sm text-gray-600">
-                Select from our curated collection of styles with predetermined configurations.
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-plum/10 rounded-full flex items-center justify-center">
-              <Palette className="w-6 h-6 text-plum" />
+              <h2 className="text-lg font-semibold mb-1">Choose Your Style</h2>
+              <p className="text-sm text-gray-600 mb-3">Select from our predesigned styles to get started. Click on any design to view details and customize.</p>
+              <div className="flex items-center">
+                <CheckCircle2 className="w-4 h-4 text-plum mr-1" />
+                <span className="text-xs text-gray-700">Customizable</span>
+                <CheckCircle2 className="w-4 h-4 text-plum ml-3 mr-1" />
+                <span className="text-xs text-gray-700">High Quality</span>
+              </div>
             </div>
           </div>
         </div>
         
-        {/* Filter Tags (if any) */}
-        {(selectedStyles.length > 0 || selectedNeckTypes.length > 0) && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {selectedStyles.map(style => (
-              <div key={style} className="bg-gray-100 text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                <span>{style}</span>
-                <button 
-                  className="text-gray-500 hover:text-gray-700" 
-                  onClick={() => setSelectedStyles(selectedStyles.filter(s => s !== style))}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-            {selectedNeckTypes.map(neck => (
-              <div key={neck} className="bg-gray-100 text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                <span>{neck}</span>
-                <button 
-                  className="text-gray-500 hover:text-gray-700" 
-                  onClick={() => setSelectedNeckTypes(selectedNeckTypes.filter(n => n !== neck))}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
+        {/* Error state */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+            <h3 className="text-red-700 font-medium">Error Loading Styles</h3>
+            <p className="text-red-600 text-sm">{error}</p>
+            <Button
+              variant="outline"
+              className="mt-2 text-sm"
+              onClick={fetchStyles}
+            >
+              Try Again
+            </Button>
+          </div>
+        )}
+        
+        {/* Empty state */}
+        {!loading && styles.length === 0 && !error && (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center">
+            <h3 className="text-gray-700 font-medium mb-2">No Styles Found</h3>
+            <p className="text-gray-600 text-sm mb-4">We couldn't find any predesigned styles for this service.</p>
           </div>
         )}
         
         {/* Styles Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {getFilteredStyles().map((style) => (
-            <div 
-              key={style.id} 
-              className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
-              onClick={() => handleStyleSelect(style)}
-            >
-              <div className="aspect-square relative">
-                <img 
-                  src={style.imageUrl} 
-                  alt={style.name} 
-                  className="w-full h-full object-cover"
-                />
-                <button className="absolute top-2 right-2 bg-white w-7 h-7 rounded-full flex items-center justify-center shadow-sm">
-                  <Heart className="w-4 h-4 text-gray-500" />
-                </button>
-              </div>
-              <div className="p-3">
-                <h3 className="font-medium text-gray-900 text-sm line-clamp-1">{style.name}</h3>
-                <div className="flex justify-between items-center mt-1">
-                  <span className="text-plum font-medium text-sm">₹{style.price}</span>
-                  <button className="text-xs flex items-center text-gray-500 gap-0.5">
-                    <Info className="w-3 h-3" /> 
-                    Details
+        {styles.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+            {styles.map((style) => (
+              <div key={style.id} className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+                <div 
+                  className="w-full aspect-[3/4] relative cursor-pointer"
+                  onClick={() => handleStyleClick(style)}
+                >
+                  <ImageWithFallback 
+                    src={style.imageUrl}
+                    alt={style.name}
+                    className="w-full h-full object-cover" 
+                    fallbackSrc="/images/placeholder-design.jpg"
+                    loading="lazy"
+                    maxRetries={0}
+                  />
+                  <button 
+                    className="absolute top-2 right-2 w-8 h-8 bg-white/70 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Toggle favorite (to be implemented)
+                      toast({
+                        title: "Feature Coming Soon",
+                        description: "Saving favorites will be available soon.",
+                      });
+                    }}
+                  >
+                    <Heart className="h-4 w-4 text-gray-700" />
                   </button>
                 </div>
+                <div className="p-3">
+                  <h3 className="font-medium text-sm line-clamp-1">{style.name}</h3>
+                  <div className="flex justify-between items-center mt-1">
+                    <div className="text-plum font-medium">₹{style.price}</div>
+                    <div className="text-xs text-gray-500">{style.configurations.blouseType}</div>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
-      
-      {/* No Dialog Needed - Using Page Navigation Instead */}
     </div>
   );
 };
